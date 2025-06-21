@@ -17,11 +17,14 @@ const AuditLog = () => {
     try {
       setLoading(true);
       const response = await auditLogAPI.getAll();
-      setAuditLogs(response.data);
+      // Ensure we always set an array, even if the API returns something unexpected
+      const logs = Array.isArray(response.data) ? response.data : [];
+      setAuditLogs(logs);
       setError(null);
     } catch (err) {
       setError('Failed to fetch audit logs');
       console.error('Error fetching audit logs:', err);
+      setAuditLogs([]); // Ensure we always have an array
     } finally {
       setLoading(false);
     }
@@ -48,7 +51,8 @@ const AuditLog = () => {
     return new Date(timestamp).toLocaleString();
   };
 
-  const filteredLogs = auditLogs.filter(log => {
+  // Ensure auditLogs is always an array before filtering
+  const filteredLogs = Array.isArray(auditLogs) ? auditLogs.filter(log => {
     const matchesFilter = filter === 'all' || log.action.toLowerCase().includes(filter.toLowerCase());
     const matchesSearch = searchTerm === '' || 
       log.user_email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -56,7 +60,7 @@ const AuditLog = () => {
       log.details?.toLowerCase().includes(searchTerm.toLowerCase());
     
     return matchesFilter && matchesSearch;
-  });
+  }) : [];
 
   if (loading) return <div className="loading">Loading audit logs...</div>;
   if (error) return <div className="error">Error: {error}</div>;
@@ -126,7 +130,7 @@ const AuditLog = () => {
       <div className="audit-summary">
         <div className="summary-item">
           <span className="summary-label">Total Logs:</span>
-          <span className="summary-value">{auditLogs.length}</span>
+          <span className="summary-value">{Array.isArray(auditLogs) ? auditLogs.length : 0}</span>
         </div>
         <div className="summary-item">
           <span className="summary-label">Filtered Logs:</span>
@@ -135,10 +139,10 @@ const AuditLog = () => {
         <div className="summary-item">
           <span className="summary-label">Actions Today:</span>
           <span className="summary-value">
-            {auditLogs.filter(log => {
+            {Array.isArray(auditLogs) ? auditLogs.filter(log => {
               const today = new Date().toDateString();
               return new Date(log.timestamp).toDateString() === today;
-            }).length}
+            }).length : 0}
           </span>
         </div>
       </div>

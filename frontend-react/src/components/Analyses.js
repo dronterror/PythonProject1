@@ -28,13 +28,16 @@ const Analyses = () => {
         patientsAPI.getAll(),
         drugsAPI.getAll()
       ]);
-      setAnalyses(analysesRes.data);
-      setPatients(patientsRes.data);
-      setDrugs(drugsRes.data);
+      setAnalyses(Array.isArray(analysesRes.data) ? analysesRes.data : []);
+      setPatients(Array.isArray(patientsRes.data) ? patientsRes.data : []);
+      setDrugs(Array.isArray(drugsRes.data) ? drugsRes.data : []);
       setError(null);
     } catch (err) {
       setError('Failed to fetch data');
       console.error('Error fetching data:', err);
+      setAnalyses([]);
+      setPatients([]);
+      setDrugs([]);
     } finally {
       setLoading(false);
     }
@@ -123,7 +126,7 @@ const Analyses = () => {
       </div>
 
       <div className="analyses-grid">
-        {analyses.map((analysis) => (
+        {Array.isArray(analyses) && analyses.map((analysis) => (
           <div key={analysis.id} className="analysis-card">
             <div className="analysis-header">
               <h3>{analysis.type} Analysis #{analysis.id}</h3>

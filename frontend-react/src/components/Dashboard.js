@@ -154,7 +154,7 @@ const Dashboard = () => {
                 </tr>
               </thead>
               <tbody>
-                {trends.monthly_trends.map((trend, index) => (
+                {Array.isArray(trends.monthly_trends) && trends.monthly_trends.map((trend, index) => (
                   <tr key={index}>
                     <td>{trend.month}</td>
                     <td>{trend.prescriptions}</td>

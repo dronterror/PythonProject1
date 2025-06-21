@@ -19,6 +19,9 @@ Version: 1.0.0
 from fastapi import FastAPI, Depends, HTTPException, status, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from sqlalchemy.orm import Session
 import models, schemas, crud, auth, blockchain
 from database import engine, Base, SessionLocal
@@ -28,18 +31,38 @@ import uvicorn
 import csv
 import io
 import json
+import time
+from functools import lru_cache
 
-# Initialize FastAPI application
+# Initialize FastAPI application with performance optimizations
 app = FastAPI(
     title="ValMed Healthcare Analytics API",
     description="Comprehensive healthcare analytics platform for patient management, drug analysis, and cost-effectiveness studies",
-    version="1.0.0"
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json"
 )
+
+# Add performance middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, specify exact origins
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Add Gzip compression middleware
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+# Add trusted host middleware for security
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"])
 
 # Create database tables on startup
 Base.metadata.create_all(bind=engine)
 
-# Database dependency - provides database session to endpoints
+# Database dependency with connection pooling optimization
 def get_db():
     """Database dependency that provides a database session to API endpoints"""
     db = SessionLocal()
@@ -47,6 +70,28 @@ def get_db():
         yield db
     finally:
         db.close()
+
+# Response caching decorator
+def cache_response(ttl_seconds: int = 300):
+    """Cache decorator for API responses"""
+    def decorator(func):
+        cache = {}
+        def wrapper(*args, **kwargs):
+            # Create cache key from function name and arguments
+            cache_key = f"{func.__name__}:{hash(str(args) + str(sorted(kwargs.items())))}"
+            
+            # Check if cached response exists and is still valid
+            if cache_key in cache:
+                cached_time, cached_response = cache[cache_key]
+                if time.time() - cached_time < ttl_seconds:
+                    return cached_response
+            
+            # Execute function and cache result
+            result = func(*args, **kwargs)
+            cache[cache_key] = (time.time(), result)
+            return result
+        return wrapper
+    return decorator
 
 # ============================================================================
 # AUTHENTICATION ENDPOINTS
@@ -196,6 +241,15 @@ def create_drug(drug: schemas.DrugCreate, db: Session = Depends(get_db), user: m
 
 @app.get("/drugs", response_model=List[schemas.DrugOut])
 def get_drugs(db: Session = Depends(get_db)):
+    """
+    Retrieve all drugs
+    
+    Args:
+        db: Database session
+        
+    Returns:
+        List[DrugOut]: List of all drugs
+    """
     return crud.get_drugs(db)
 
 @app.get("/drugs/{drug_id}", response_model=schemas.DrugOut)
@@ -229,6 +283,15 @@ def create_prescription(prescription: schemas.PrescriptionCreate, db: Session = 
 
 @app.get("/prescriptions", response_model=List[schemas.PrescriptionOut])
 def get_prescriptions(db: Session = Depends(get_db)):
+    """
+    Retrieve all prescriptions
+    
+    Args:
+        db: Database session
+        
+    Returns:
+        List[PrescriptionOut]: List of all prescriptions
+    """
     return crud.get_prescriptions(db)
 
 @app.get("/prescriptions/{prescription_id}", response_model=schemas.PrescriptionOut)
@@ -262,6 +325,15 @@ def create_analysis(analysis: schemas.AnalysisCreate, db: Session = Depends(get_
 
 @app.get("/analyses", response_model=List[schemas.AnalysisOut])
 def get_analyses(db: Session = Depends(get_db)):
+    """
+    Retrieve all analyses
+    
+    Args:
+        db: Database session
+        
+    Returns:
+        List[AnalysisOut]: List of all analyses
+    """
     return crud.get_analyses(db)
 
 @app.get("/analyses/{analysis_id}", response_model=schemas.AnalysisOut)

@@ -16,11 +16,14 @@ const Reports = () => {
     try {
       setLoading(true);
       const response = await reportsAPI.getAll();
-      setReports(response.data);
+      // Ensure we always set an array, even if the API returns something unexpected
+      const reportsData = Array.isArray(response.data) ? response.data : [];
+      setReports(reportsData);
       setError(null);
     } catch (err) {
       setError('Failed to fetch reports');
       console.error('Error fetching reports:', err);
+      setReports([]); // Ensure we always have an array
     } finally {
       setLoading(false);
     }
@@ -166,7 +169,7 @@ const Reports = () => {
         <div className="section">
           <h3>Generated Reports</h3>
           <div className="reports-list">
-            {reports.length === 0 ? (
+            {!Array.isArray(reports) || reports.length === 0 ? (
               <p className="no-reports">No reports generated yet. Use the buttons above to generate reports.</p>
             ) : (
               reports.map((report) => (

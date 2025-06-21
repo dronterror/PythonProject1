@@ -1,0 +1,63 @@
+# Optimized Traefik configuration
+api:
+  dashboard: true
+  insecure: true  # Enable dashboard access
+
+entryPoints:
+  web:
+    address: ":80"
+
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: true
+    network: traefik-network
+    # Performance optimizations
+    watch: true
+
+# Global middleware for compression
+http:
+  middlewares:
+    compression:
+      compress: {}
+    security-headers:
+      headers:
+        # Security headers
+        frameDeny: true
+        sslRedirect: false
+        browserXssFilter: true
+        contentTypeNosniff: true
+        forceSTSHeader: true
+        stsIncludeSubdomains: true
+        stsPreload: true
+        stsSeconds: 31536000
+        customFrameOptionsValue: "SAMEORIGIN"
+        # Performance headers
+        customResponseHeaders:
+          X-Content-Type-Options: "nosniff"
+          X-Frame-Options: "SAMEORIGIN"
+          X-XSS-Protection: "1; mode=block"
+          Referrer-Policy: "strict-origin-when-cross-origin"
+          # Cache control for static assets
+          Cache-Control: "public, max-age=31536000, immutable"
+
+# Performance optimizations
+log:
+  level: INFO
+  format: json
+
+accessLog:
+  format: json
+  fields:
+    defaultMode: keep
+    headers:
+      defaultMode: keep
+      names:
+        User-Agent: keep
+        Authorization: redact
+        Cookie: redact
+
+# Global settings
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false 

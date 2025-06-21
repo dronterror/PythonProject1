@@ -26,11 +26,14 @@ const Drugs = () => {
     try {
       setLoading(true);
       const response = await drugsAPI.getAll();
-      setDrugs(response.data);
+      // Ensure we always set an array, even if the API returns something unexpected
+      const drugsData = Array.isArray(response.data) ? response.data : [];
+      setDrugs(drugsData);
       setError(null);
     } catch (err) {
       setError('Failed to fetch drugs');
       console.error('Error fetching drugs:', err);
+      setDrugs([]); // Ensure we always have an array
     } finally {
       setLoading(false);
     }
@@ -117,7 +120,7 @@ const Drugs = () => {
       </div>
 
       <div className="drugs-grid">
-        {drugs.map((drug) => (
+        {Array.isArray(drugs) && drugs.map((drug) => (
           <div key={drug.id} className="drug-card">
             <div className="drug-header">
               <h3>{drug.name}</h3>

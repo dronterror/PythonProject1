@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -58,10 +58,10 @@ export const reportsAPI = {
   generatePatientSummary: () => api.post('/reports/generate/patient-summary'),
   generateDrugPerformance: () => api.post('/reports/generate/drug-performance'),
   generateFinancialAnalysis: () => api.post('/reports/generate/financial-analysis'),
-  exportPatientsCSV: () => api.get('/reports/export/patients/csv', { responseType: 'blob' }),
-  exportDrugsCSV: () => api.get('/reports/export/drugs/csv', { responseType: 'blob' }),
-  exportPrescriptionsCSV: () => api.get('/reports/export/prescriptions/csv', { responseType: 'blob' }),
-  exportAllJSON: () => api.get('/reports/export/all/json', { responseType: 'blob' }),
+  exportPatientsCSV: () => api.get('/export/patients/csv', { responseType: 'blob' }),
+  exportDrugsCSV: () => api.get('/export/drugs/csv', { responseType: 'blob' }),
+  exportPrescriptionsCSV: () => api.get('/export/prescriptions/csv', { responseType: 'blob' }),
+  exportAllJSON: () => api.get('/export/all/json', { responseType: 'blob' }),
 };
 
 // Audit Log API

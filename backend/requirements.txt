@@ -1,5 +1,5 @@
 fastapi
-uvicorn
+uvicorn[standard]
 sqlalchemy
 psycopg2-binary
 jinja2
@@ -7,4 +7,10 @@ python-jose[cryptography]
 passlib[bcrypt]
 web3
 email-validator
-python-multipart 
+python-multipart
+# Performance optimizations
+gunicorn
+redis
+aioredis
+httpx
+pydantic[email] 

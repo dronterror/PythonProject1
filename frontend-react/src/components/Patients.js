@@ -18,10 +18,13 @@ const Patients = () => {
       setLoading(true);
       setError('');
       const response = await patientsAPI.getAll();
-      setPatients(response.data);
+      // Ensure we always set an array, even if the API returns something unexpected
+      const patientsData = Array.isArray(response.data) ? response.data : [];
+      setPatients(patientsData);
     } catch (err) {
       setError('Failed to load patients');
       console.error('Patients loading error:', err);
+      setPatients([]); // Ensure we always have an array
     } finally {
       setLoading(false);
     }
@@ -127,7 +130,7 @@ const Patients = () => {
 
       <div className="card">
         <h2>Patients List</h2>
-        {patients.length === 0 ? (
+        {!Array.isArray(patients) || patients.length === 0 ? (
           <p>No patients found.</p>
         ) : (
           <table className="table">

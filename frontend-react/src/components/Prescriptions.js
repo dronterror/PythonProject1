@@ -34,13 +34,16 @@ const Prescriptions = () => {
         patientsAPI.getAll(),
         drugsAPI.getAll()
       ]);
-      setPrescriptions(prescriptionsRes.data);
-      setPatients(patientsRes.data);
-      setDrugs(drugsRes.data);
+      setPrescriptions(Array.isArray(prescriptionsRes.data) ? prescriptionsRes.data : []);
+      setPatients(Array.isArray(patientsRes.data) ? patientsRes.data : []);
+      setDrugs(Array.isArray(drugsRes.data) ? drugsRes.data : []);
       setError(null);
     } catch (err) {
       setError('Failed to fetch data');
       console.error('Error fetching data:', err);
+      setPrescriptions([]);
+      setPatients([]);
+      setDrugs([]);
     } finally {
       setLoading(false);
     }
@@ -141,7 +144,7 @@ const Prescriptions = () => {
       </div>
 
       <div className="prescriptions-grid">
-        {prescriptions.map((prescription) => (
+        {Array.isArray(prescriptions) && prescriptions.map((prescription) => (
           <div key={prescription.id} className="prescription-card">
             <div className="prescription-header">
               <h3>Prescription #{prescription.id}</h3>
@@ -191,7 +194,7 @@ const Prescriptions = () => {
                   required
                 >
                   <option value="">Select Patient</option>
-                  {patients.map(patient => (
+                  {Array.isArray(patients) && patients.map(patient => (
                     <option key={patient.id} value={patient.id}>
                       {patient.name}
                     </option>
@@ -206,7 +209,7 @@ const Prescriptions = () => {
                   required
                 >
                   <option value="">Select Drug</option>
-                  {drugs.map(drug => (
+                  {Array.isArray(drugs) && drugs.map(drug => (
                     <option key={drug.id} value={drug.id}>
                       {drug.name}
                     </option>
