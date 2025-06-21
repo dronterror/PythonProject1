@@ -8,6 +8,7 @@ psycopg2-binary
 pytest
 pytest-asyncio
 pytest-cov
+pytest-env
 httpx
 factory-boy
 faker

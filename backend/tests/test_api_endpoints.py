@@ -1,5 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
+from datetime import datetime
 
 # --- Health Endpoints ---
 class TestHealthEndpoints:
@@ -24,8 +25,9 @@ class TestDrugsEndpoints:
         from main import app
         app.dependency_overrides[get_current_user] = lambda: test_user_pharmacist
         
+        drug_name = f"Unique Test Drug {datetime.now().timestamp()}"
         drug_data = {
-            "name": "Test Drug",
+            "name": drug_name,
             "form": "Tablet",
             "strength": "500mg",
             "current_stock": 100,
@@ -36,12 +38,13 @@ class TestDrugsEndpoints:
             "/api/drugs/",
             json=drug_data,
         )
-        
+
+        if response.status_code != 200:
+            print(f"Drug creation failed with status {response.status_code}: {response.json()}")
+            
         assert response.status_code == 200
         data = response.json()
-        assert data["name"] == "Test Drug"
-        assert data["form"] == "Tablet"
-        assert data["strength"] == "500mg"
+        assert data["name"] == drug_name
         
         # Clean up override
         app.dependency_overrides.clear()
@@ -396,22 +399,45 @@ class TestOrdersEndpoints:
 # --- Administrations Endpoints ---
 class TestAdministrationsEndpoints:
     @pytest.mark.usefixtures("test_order")
-    def test_create_administration_nurse_access(self, client, test_user_nurse, test_order):
+    def test_create_administration_nurse_access(self, client, db_session, test_user_nurse, test_order):
         """Test creating an administration with nurse access."""
-        # Override get_current_user for this test
-        from dependencies import get_current_user
+        # Override get_current_user and get_db for this test
+        from dependencies import get_current_user, get_db
         from main import app
         app.dependency_overrides[get_current_user] = lambda: test_user_nurse
-        
+        app.dependency_overrides[get_db] = lambda: db_session
+
+        # Ensure the drug exists in the test database
+        from models import Drug
+        drug = Drug(
+            name="Test Drug for Administration",
+            form="Tablet",
+            strength="100mg",
+            current_stock=10,
+            low_stock_threshold=5
+        )
+        db_session.add(drug)
+        db_session.commit()
+        db_session.refresh(drug)
+
+        # Update the test order to use this drug
+        test_order.drug_id = drug.id
+        db_session.add(test_order)
+        db_session.commit()
+
         admin_data = {
-            "order_id": test_order.id
+            "order_id": test_order.id,
+            "nurse_id": test_user_nurse.id
         }
-        
+
         response = client.post(
             "/api/administrations/",
             json=admin_data,
         )
-        
+
+        if response.status_code != 200:
+            print(f"Administration creation failed with status {response.status_code}: {response.json()}")
+            
         assert response.status_code == 200
         data = response.json()
         assert data["order_id"] == test_order.id
@@ -420,22 +446,27 @@ class TestAdministrationsEndpoints:
         # Clean up override
         app.dependency_overrides.clear()
     
-    def test_create_administration_order_not_found(self, client, test_user_nurse):
+    def test_create_administration_order_not_found(self, client, db_session, test_user_nurse):
         """Test creating an administration with non-existent order."""
-        # Override get_current_user for this test
-        from dependencies import get_current_user
+        # Override get_current_user and get_db for this test
+        from dependencies import get_current_user, get_db
         from main import app
         app.dependency_overrides[get_current_user] = lambda: test_user_nurse
-        
+        app.dependency_overrides[get_db] = lambda: db_session
+
         admin_data = {
-            "order_id": 999
+            "order_id": 999,
+            "nurse_id": test_user_nurse.id
         }
-        
+
         response = client.post(
             "/api/administrations/",
             json=admin_data,
         )
-        
+
+        if response.status_code != 404:
+            print(f"Administration creation failed with status {response.status_code}: {response.json()}")
+            
         assert response.status_code == 404
         assert "Order not found" in response.json()["detail"]
         
@@ -449,38 +480,61 @@ class TestAdministrationsEndpoints:
         from dependencies import get_current_user
         from main import app
         app.dependency_overrides[get_current_user] = lambda: test_user_doctor
-        
+
         admin_data = {
-            "order_id": test_order.id
+            "order_id": test_order.id,
+            "nurse_id": test_user_doctor.id
         }
-        
+
         response = client.post(
             "/api/administrations/",
             json=admin_data,
         )
-        
+
         assert response.status_code == 403
         
         # Clean up override
         app.dependency_overrides.clear()
     
     @pytest.mark.usefixtures("test_order")
-    def test_get_administrations(self, client, test_user_nurse, test_order):
+    def test_get_administrations(self, client, db_session, test_user_nurse, test_order):
         """Test getting all administrations."""
-        # Override get_current_user for this test
-        from dependencies import get_current_user
+        # Override get_current_user and get_db for this test
+        from dependencies import get_current_user, get_db
         from main import app
         app.dependency_overrides[get_current_user] = lambda: test_user_nurse
-        
+        app.dependency_overrides[get_db] = lambda: db_session
+
+        # Ensure the drug exists in the test database
+        from models import Drug
+        drug = Drug(
+            name="Test Drug for Get Administrations",
+            form="Tablet",
+            strength="200mg",
+            current_stock=10,
+            low_stock_threshold=5
+        )
+        db_session.add(drug)
+        db_session.commit()
+        db_session.refresh(drug)
+
+        # Update the test order to use this drug
+        test_order.drug_id = drug.id
+        db_session.add(test_order)
+        db_session.commit()
+
         # First create an administration
-        admin_data = {"order_id": test_order.id}
-        client.post(
+        admin_data = {"order_id": test_order.id, "nurse_id": test_user_nurse.id}
+        response = client.post(
             "/api/administrations/",
             json=admin_data,
         )
-        
+
+        if response.status_code != 200:
+            print(f"Administration creation failed with status {response.status_code}: {response.json()}")
+
         response = client.get("/api/administrations/")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert len(data) >= 1

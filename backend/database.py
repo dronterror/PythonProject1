@@ -36,4 +36,15 @@ SessionLocal = sessionmaker(
     expire_on_commit=False  # Prevent lazy loading issues
 )
 
-Base = declarative_base() 
+Base = declarative_base()
+
+def get_db():
+    """
+    Database dependency for FastAPI.
+    Provides a database session and ensures proper cleanup.
+    """
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close() 

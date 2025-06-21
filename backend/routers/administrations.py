@@ -4,6 +4,7 @@ from models import MedicationOrder, User, UserRole, MedicationAdministration, Dr
 from schemas import MedicationAdministrationOut, MedicationAdministrationCreate
 from dependencies import require_role, get_db, get_current_user
 from crud import create_administration_and_decrement_stock
+from models import OrderStatus
 
 router = APIRouter(prefix="/administrations", tags=["administrations"])
 
@@ -23,7 +24,7 @@ def create_administration(
         if not order:
             raise HTTPException(status_code=404, detail="Order not found")
         
-        if order.status != "active":
+        if order.status != OrderStatus.active:
             raise HTTPException(status_code=400, detail="Order is not active")
         
         # Step B: Call the atomic CRUD function with proper parameters
@@ -41,13 +42,20 @@ def create_administration(
         # Step C: Convert ValueError to appropriate HTTPException
         if "Insufficient stock" in str(e):
             raise HTTPException(status_code=400, detail="Insufficient stock")
-        elif "Order not found" in str(e):
+        elif "Order not found or not active" in str(e):
             raise HTTPException(status_code=404, detail="Order not found or not active")
+        elif "Order not found" in str(e):
+            raise HTTPException(status_code=404, detail="Order not found")
         elif "Drug not found" in str(e):
             raise HTTPException(status_code=404, detail="Drug not found")
         else:
             raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        # Debug: print exception type and message
+        import sys
+        print(f"DEBUG: Exception type: {type(e)}, message: {e}", file=sys.stderr)
+        if isinstance(e, HTTPException):
+            raise e
         # Handle any other unexpected errors
         raise HTTPException(status_code=500, detail="Internal server error during administration")
 

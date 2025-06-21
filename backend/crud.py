@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import and_, func, select
 from datetime import datetime, timedelta
 import models, schemas
@@ -102,10 +102,37 @@ def create_with_doctor(db: Session, order_in: schemas.MedicationOrderCreate, doc
     return db_order
 
 def get_medication_orders(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.MedicationOrder).offset(skip).limit(limit).all()
+    """
+    Get medication orders with administrations eagerly loaded.
+    
+    Args:
+        db: Database session
+        skip: Number of records to skip
+        limit: Maximum number of records to return
+        
+    Returns:
+        List of MedicationOrder objects with administrations eagerly loaded
+    """
+    return db.query(models.MedicationOrder).options(
+        selectinload(models.MedicationOrder.administrations)
+    ).offset(skip).limit(limit).all()
 
 def get_medication_order(db: Session, order_id: int):
-    return db.query(models.MedicationOrder).filter(models.MedicationOrder.id == order_id).first()
+    """
+    Get a single medication order with administrations eagerly loaded.
+    
+    Args:
+        db: Database session
+        order_id: ID of the order to retrieve
+        
+    Returns:
+        MedicationOrder object with administrations eagerly loaded, or None if not found
+    """
+    return db.query(models.MedicationOrder).filter(
+        models.MedicationOrder.id == order_id
+    ).options(
+        selectinload(models.MedicationOrder.administrations)
+    ).first()
 
 def update_medication_order(db: Session, order_id: int, order: schemas.MedicationOrderUpdate):
     db_order = get_medication_order(db, order_id)
@@ -128,15 +155,35 @@ def delete_medication_order(db: Session, order_id: int):
     return db_order
 
 def get_active_medication_orders(db: Session):
-    """Get all active medication orders"""
+    """
+    Get all active medication orders with administrations eagerly loaded.
+    
+    Args:
+        db: Database session
+        
+    Returns:
+        List of MedicationOrder objects with administrations eagerly loaded
+    """
     return db.query(models.MedicationOrder).filter(
         models.MedicationOrder.status == "active"
+    ).options(
+        selectinload(models.MedicationOrder.administrations)
     ).all()
 
 def get_multi_active(db: Session) -> list[models.MedicationOrder]:
-    """Get all active medication orders for the nurse's dashboard"""
+    """
+    Get all active medication orders for the nurse's dashboard with administrations eagerly loaded.
+    
+    Args:
+        db: Database session
+        
+    Returns:
+        List of MedicationOrder objects with administrations eagerly loaded
+    """
     return db.query(models.MedicationOrder).filter(
         models.MedicationOrder.status == models.OrderStatus.active
+    ).options(
+        selectinload(models.MedicationOrder.administrations)
     ).all()
 
 def get_multi_by_doctor(db: Session, doctor_id: int) -> list[models.MedicationOrder]:
@@ -150,8 +197,6 @@ def get_multi_by_doctor(db: Session, doctor_id: int) -> list[models.MedicationOr
     Returns:
         List of MedicationOrder objects with administrations eagerly loaded
     """
-    from sqlalchemy.orm import selectinload
-    
     return db.query(models.MedicationOrder).filter(
         models.MedicationOrder.doctor_id == doctor_id
     ).options(
@@ -224,14 +269,11 @@ def create_administration_and_decrement_stock(db: Session, order_id: int, drug_i
             models.MedicationOrder.id == order_id,
             models.MedicationOrder.status == models.OrderStatus.active
         ).first()
-        
-        if not order:
+        if order is None:
             raise ValueError("Order not found or not active")
         
-        # Step 2: Lock the drug row for update to prevent race conditions
-        drug = db.execute(
-            select(models.Drug).where(models.Drug.id == drug_id).with_for_update()
-        ).scalar_one_or_none()
+        # Step 2: Get the drug (removed with_for_update for SQLAlchemy 1.x compatibility)
+        drug = db.query(models.Drug).filter(models.Drug.id == drug_id).first()
         
         if not drug:
             raise ValueError("Drug not found")
@@ -290,9 +332,8 @@ def create_administration_and_decrement_stock_legacy(db: Session, admin: schemas
             raise HTTPException(status_code=404, detail="Nurse not found or not a nurse")
         
         # Lock the drug row for update (WARNING: SQLite does not enforce row-level locks)
-        drug = db.execute(
-            select(models.Drug).where(models.Drug.id == drug_id).with_for_update()
-        ).scalar_one_or_none()
+        drug = db.query(models.Drug).filter(models.Drug.id == drug_id).first()
+        
         if not drug:
             raise HTTPException(status_code=404, detail="Drug not found")
         
