@@ -306,6 +306,92 @@ class TestOrdersEndpoints:
         
         # Clean up override
         app.dependency_overrides.clear()
+    
+    # Tests for new collaborative endpoints
+    @pytest.mark.usefixtures("test_order")
+    def test_get_my_orders_doctor_access(self, client, test_user_doctor, test_order):
+        """Test doctor can access their own orders."""
+        # Override get_current_user for this test
+        from dependencies import get_current_user
+        from main import app
+        app.dependency_overrides[get_current_user] = lambda: test_user_doctor
+        
+        response = client.get("/api/orders/my-orders/")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) >= 1
+        assert any(order["id"] == test_order.id for order in data)
+        assert all(order["doctor_id"] == test_user_doctor.id for order in data)
+        
+        # Clean up override
+        app.dependency_overrides.clear()
+    
+    def test_get_my_orders_nurse_denied(self, client, test_user_nurse):
+        """Test nurse cannot access doctor's my-orders endpoint."""
+        # Override get_current_user for this test
+        from dependencies import get_current_user
+        from main import app
+        app.dependency_overrides[get_current_user] = lambda: test_user_nurse
+        
+        response = client.get("/api/orders/my-orders/")
+        
+        assert response.status_code == 403
+        
+        # Clean up override
+        app.dependency_overrides.clear()
+    
+    @pytest.mark.usefixtures("test_order")
+    def test_get_active_mar_nurse_access(self, client, test_user_nurse, test_order):
+        """Test nurse can access active MAR endpoint."""
+        # Override get_current_user for this test
+        from dependencies import get_current_user
+        from main import app
+        app.dependency_overrides[get_current_user] = lambda: test_user_nurse
+        
+        response = client.get("/api/orders/active-mar/")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) >= 1
+        assert any(order["id"] == test_order.id for order in data)
+        assert all(order["status"] == "active" for order in data)
+        
+        # Clean up override
+        app.dependency_overrides.clear()
+    
+    @pytest.mark.usefixtures("test_order")
+    def test_get_active_mar_pharmacist_access(self, client, test_user_pharmacist, test_order):
+        """Test pharmacist can access active MAR endpoint."""
+        # Override get_current_user for this test
+        from dependencies import get_current_user
+        from main import app
+        app.dependency_overrides[get_current_user] = lambda: test_user_pharmacist
+        
+        response = client.get("/api/orders/active-mar/")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) >= 1
+        assert any(order["id"] == test_order.id for order in data)
+        assert all(order["status"] == "active" for order in data)
+        
+        # Clean up override
+        app.dependency_overrides.clear()
+    
+    def test_get_active_mar_doctor_denied(self, client, test_user_doctor):
+        """Test doctor cannot access active MAR endpoint."""
+        # Override get_current_user for this test
+        from dependencies import get_current_user
+        from main import app
+        app.dependency_overrides[get_current_user] = lambda: test_user_doctor
+        
+        response = client.get("/api/orders/active-mar/")
+        
+        assert response.status_code == 403
+        
+        # Clean up override
+        app.dependency_overrides.clear()
 
 # --- Administrations Endpoints ---
 class TestAdministrationsEndpoints:

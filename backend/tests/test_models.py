@@ -2,6 +2,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 from models import User, UserRole, Drug, MedicationOrder, OrderStatus, MedicationAdministration
 from datetime import datetime
+from crud import get_multi_by_doctor
 
 class TestUserModel:
     def test_create_user(self, db_session):
@@ -232,4 +233,99 @@ class TestMedicationAdministrationModel:
         db_session.commit()
         
         assert str(test_order.id) in str(admin)
-        assert str(test_user_nurse.id) in str(admin) 
+        assert str(test_user_nurse.id) in str(admin)
+
+class TestCRUDFunctions:
+    def test_get_multi_by_doctor(self, db_session, test_user_doctor, test_drug):
+        """Test get_multi_by_doctor function loads orders with administrations."""
+        # Create multiple orders for the doctor
+        order1 = MedicationOrder(
+            patient_name="John Doe",
+            drug_id=test_drug.id,
+            dosage=2,
+            schedule="Every 8 hours",
+            status=OrderStatus.active,
+            doctor_id=test_user_doctor.id,
+            created_at=datetime.utcnow()
+        )
+        order2 = MedicationOrder(
+            patient_name="Jane Smith",
+            drug_id=test_drug.id,
+            dosage=1,
+            schedule="Every 12 hours",
+            status=OrderStatus.completed,
+            doctor_id=test_user_doctor.id,
+            created_at=datetime.utcnow()
+        )
+        db_session.add_all([order1, order2])
+        db_session.commit()
+        
+        # Create administrations for the orders
+        admin1 = MedicationAdministration(
+            order_id=order1.id,
+            nurse_id=1  # Mock nurse ID
+        )
+        admin2 = MedicationAdministration(
+            order_id=order2.id,
+            nurse_id=1  # Mock nurse ID
+        )
+        db_session.add_all([admin1, admin2])
+        db_session.commit()
+        
+        # Test the function
+        orders = get_multi_by_doctor(db_session, test_user_doctor.id)
+        
+        assert len(orders) == 2
+        assert orders[0].patient_name == "John Doe"
+        assert orders[1].patient_name == "Jane Smith"
+        
+        # Check that administrations are loaded
+        assert len(orders[0].administrations) == 1
+        assert len(orders[1].administrations) == 1
+        assert orders[0].administrations[0].order_id == order1.id
+        assert orders[1].administrations[0].order_id == order2.id
+    
+    def test_get_multi_by_doctor_no_orders(self, db_session, test_user_doctor):
+        """Test get_multi_by_doctor returns empty list when doctor has no orders."""
+        orders = get_multi_by_doctor(db_session, test_user_doctor.id)
+        assert len(orders) == 0
+    
+    def test_get_multi_by_doctor_other_doctor_orders(self, db_session, test_user_doctor, test_drug):
+        """Test get_multi_by_doctor only returns orders for the specified doctor."""
+        # Create another doctor
+        other_doctor = User(
+            email="other@test.com",
+            role=UserRole.doctor,
+            api_key="other_key",
+            hashed_password="password"
+        )
+        db_session.add(other_doctor)
+        db_session.commit()
+        
+        # Create orders for both doctors
+        order1 = MedicationOrder(
+            patient_name="John Doe",
+            drug_id=test_drug.id,
+            dosage=2,
+            schedule="Every 8 hours",
+            status=OrderStatus.active,
+            doctor_id=test_user_doctor.id,
+            created_at=datetime.utcnow()
+        )
+        order2 = MedicationOrder(
+            patient_name="Jane Smith",
+            drug_id=test_drug.id,
+            dosage=1,
+            schedule="Every 12 hours",
+            status=OrderStatus.active,
+            doctor_id=other_doctor.id,
+            created_at=datetime.utcnow()
+        )
+        db_session.add_all([order1, order2])
+        db_session.commit()
+        
+        # Test that only the first doctor's orders are returned
+        orders = get_multi_by_doctor(db_session, test_user_doctor.id)
+        assert len(orders) == 1
+        assert orders[0].patient_name == "John Doe"
+        assert orders[0].doctor_id == test_user_doctor.id 

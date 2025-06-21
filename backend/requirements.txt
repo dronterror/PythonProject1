@@ -10,4 +10,5 @@ pytest-asyncio
 pytest-cov
 httpx
 factory-boy
-faker 
+faker
+requests 

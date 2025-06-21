@@ -93,6 +93,14 @@ def create_medication_order(db: Session, order: schemas.MedicationOrderCreate, d
     db.refresh(db_order)
     return db_order
 
+def create_with_doctor(db: Session, order_in: schemas.MedicationOrderCreate, doctor_id: int) -> models.MedicationOrder:
+    """Create a medication order with the doctor_id from the authenticated user"""
+    db_order = models.MedicationOrder(**order_in.dict(), doctor_id=doctor_id)
+    db.add(db_order)
+    db.commit()
+    db.refresh(db_order)
+    return db_order
+
 def get_medication_orders(db: Session, skip: int = 0, limit: int = 100):
     return db.query(models.MedicationOrder).offset(skip).limit(limit).all()
 
@@ -123,6 +131,31 @@ def get_active_medication_orders(db: Session):
     """Get all active medication orders"""
     return db.query(models.MedicationOrder).filter(
         models.MedicationOrder.status == "active"
+    ).all()
+
+def get_multi_active(db: Session) -> list[models.MedicationOrder]:
+    """Get all active medication orders for the nurse's dashboard"""
+    return db.query(models.MedicationOrder).filter(
+        models.MedicationOrder.status == models.OrderStatus.active
+    ).all()
+
+def get_multi_by_doctor(db: Session, doctor_id: int) -> list[models.MedicationOrder]:
+    """
+    Get all orders created by a specific doctor with their administrations efficiently loaded.
+    
+    Args:
+        db: Database session
+        doctor_id: ID of the doctor whose orders to retrieve
+        
+    Returns:
+        List of MedicationOrder objects with administrations eagerly loaded
+    """
+    from sqlalchemy.orm import selectinload
+    
+    return db.query(models.MedicationOrder).filter(
+        models.MedicationOrder.doctor_id == doctor_id
+    ).options(
+        selectinload(models.MedicationOrder.administrations)
     ).all()
 
 # Medication Administration CRUD
@@ -180,7 +213,67 @@ def get_medication_administrations_by_nurse(db: Session, nurse_id: int):
         models.MedicationAdministration.nurse_id == nurse_id
     ).all()
 
-def create_administration_and_decrement_stock(db: Session, admin: schemas.MedicationAdministrationCreate, drug_id: int):
+def create_administration_and_decrement_stock(db: Session, order_id: int, drug_id: int, nurse_id: int):
+    """
+    Critical function: Atomic transaction to create administration and decrement stock
+    This is the "final boss" function that implements the core business logic
+    """
+    try:
+        # Step 1: Fetch the order and validate it exists and is active
+        order = db.query(models.MedicationOrder).filter(
+            models.MedicationOrder.id == order_id,
+            models.MedicationOrder.status == models.OrderStatus.active
+        ).first()
+        
+        if not order:
+            raise ValueError("Order not found or not active")
+        
+        # Step 2: Lock the drug row for update to prevent race conditions
+        drug = db.execute(
+            select(models.Drug).where(models.Drug.id == drug_id).with_for_update()
+        ).scalar_one_or_none()
+        
+        if not drug:
+            raise ValueError("Drug not found")
+        
+        # Step 3: Check if there's sufficient stock
+        if drug.current_stock <= 0:
+            raise ValueError("Insufficient stock")
+        
+        # Step 4: Create administration record
+        administration = models.MedicationAdministration(
+            order_id=order_id,
+            nurse_id=nurse_id
+        )
+        db.add(administration)
+        
+        # Step 5: Decrement stock by 1 (atomic operation)
+        drug.current_stock -= 1
+        
+        # Step 6: Mark order as completed (MVP: assume one administration per order)
+        order.status = models.OrderStatus.completed
+        db.add(order)
+        
+        # Step 7: Commit the entire transaction
+        db.commit()
+        db.refresh(administration)
+        
+        logger.info(f"Successfully administered medication: Order {order_id}, Drug {drug_id}, Nurse {nurse_id}")
+        return administration
+        
+    except ValueError as e:
+        # Rollback on business logic errors
+        db.rollback()
+        logger.error(f"Business logic error in administration: {e}")
+        raise e
+    except Exception as e:
+        # Rollback on any other errors
+        db.rollback()
+        logger.error(f"Unexpected error in administration transaction: {e}")
+        raise e
+
+def create_administration_and_decrement_stock_legacy(db: Session, admin: schemas.MedicationAdministrationCreate, drug_id: int):
+    """Legacy function - kept for backward compatibility"""
     try:
         # Fetch order and check existence
         order = db.query(models.MedicationOrder).filter(models.MedicationOrder.id == admin.order_id).first()

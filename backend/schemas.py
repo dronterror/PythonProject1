@@ -107,6 +107,7 @@ class MedicationOrderOut(MedicationOrderBase):
     doctor_id: int
     created_at: datetime
     drug: DrugOut
+    administrations: List["MedicationAdministrationOut"] = []
     
     class Config:
         from_attributes = True
