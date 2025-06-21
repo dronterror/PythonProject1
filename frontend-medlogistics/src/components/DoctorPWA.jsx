@@ -7,58 +7,87 @@ const statusPillColors = {
   success: 'bg-green-100 text-green-700',
 };
 
+// API Configuration
+const API_BASE = '/api';
+const API_KEY = '0f83b062004308a71056537a7929aedb'; // Doctor API key
+
 const DoctorPWA = () => {
-    const [patients, setPatients] = useState([]);
+    const [orders, setOrders] = useState([]);
+    const [drugs, setDrugs] = useState([]);
     const [search, setSearch] = useState('');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [isMenuOpen, setMenuOpen] = useState(false);
     const [isProfileOpen, setProfileOpen] = useState(false);
     const [isOrderOpen, setOrderOpen] = useState(false);
+    const [newOrder, setNewOrder] = useState({
+        patient_name: '',
+        drug_id: '',
+        dosage: '',
+        schedule: ''
+    });
 
     useEffect(() => {
-        const fetchPatients = async () => {
+        const fetchData = async () => {
             setLoading(true);
             setError(null);
             try {
-                const res = await fetch('/medication/ward/patients');
-                if (!res.ok) throw new Error('Failed to fetch patients');
-                const data = await res.json();
-                // Map API data to UI structure
-                const mapped = data.map(p => {
-                    let status = 'success', statusText = 'Completed', med = '', time = '';
-                    if (p.overdue_count > 0) {
-                        status = 'critical'; statusText = 'Overdue';
-                        med = p.overdue_medication_name || '';
-                        time = p.overdue_time || '';
-                    } else if (p.due_count > 0) {
-                        status = 'warning'; statusText = 'Due Soon';
-                        med = p.due_medication_name || '';
-                        time = p.due_time || '';
+                // Fetch orders
+                const ordersRes = await fetch(`${API_BASE}/orders/`, {
+                    headers: {
+                        'X-API-Key': API_KEY
                     }
-                    return {
-                        id: p.id,
-                        name: p.name,
-                        bed: p.bed_number,
-                        status,
-                        statusText,
-                        med,
-                        time,
-                    };
                 });
-                setPatients(mapped);
+                if (!ordersRes.ok) throw new Error('Failed to fetch orders');
+                const ordersData = await ordersRes.json();
+                setOrders(ordersData);
+
+                // Fetch drugs
+                const drugsRes = await fetch(`${API_BASE}/drugs/`, {
+                    headers: {
+                        'X-API-Key': API_KEY
+                    }
+                });
+                if (!drugsRes.ok) throw new Error('Failed to fetch drugs');
+                const drugsData = await drugsRes.json();
+                setDrugs(drugsData);
             } catch (err) {
                 setError(err.message);
             } finally {
                 setLoading(false);
             }
         };
-        fetchPatients();
+        fetchData();
     }, []);
 
-    const filteredPatients = patients.filter(p =>
-        p.name.toLowerCase().includes(search.toLowerCase()) ||
-        (p.bed && p.bed.includes(search))
+    const handleCreateOrder = async (e) => {
+        e.preventDefault();
+        try {
+            const response = await fetch(`${API_BASE}/orders/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-API-Key': API_KEY
+                },
+                body: JSON.stringify(newOrder)
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.detail || 'Failed to create order');
+            }
+            
+            const createdOrder = await response.json();
+            setOrders([...orders, createdOrder]);
+            setNewOrder({ patient_name: '', drug_id: '', dosage: '', schedule: '' });
+            setOrderOpen(false);
+        } catch (err) {
+            setError(err.message);
+        }
+    };
+
+    const filteredOrders = orders.filter(order =>
+        order.patient_name.toLowerCase().includes(search.toLowerCase())
     );
 
     return (
@@ -76,7 +105,7 @@ const DoctorPWA = () => {
                 <input
                     type="text"
                     className="flex-grow px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-200 text-sm"
-                    placeholder="Search patients..."
+                    placeholder="Search orders..."
                     value={search}
                     onChange={e => setSearch(e.target.value)}
                 />
@@ -90,22 +119,21 @@ const DoctorPWA = () => {
                 <div className="py-8 text-center text-red-600">{error}</div>
             ) : (
                 <ul className="divide-y divide-gray-100">
-                    {filteredPatients.map((patient, idx) => (
+                    {filteredOrders.map((order, idx) => (
                         <li
                           className="flex justify-between items-center px-4 py-4 cursor-pointer bg-white hover:bg-blue-50 transition-all duration-200 opacity-0 translate-y-4 animate-list-fade-in"
-                          key={patient.id}
+                          key={order.id}
                           style={{ animationDelay: `${idx * 60}ms` }}
                         >
                             <div className="flex-1">
-                                <div className="font-medium text-base mb-1">{patient.name} (Bed {patient.bed})</div>
+                                <div className="font-medium text-base mb-1">{order.patient_name}</div>
                                 <div className="flex items-center gap-2 text-sm text-gray-500">
-                                    <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold uppercase ${statusPillColors[patient.status]}`}>{patient.statusText}</span>
-                                    {patient.status !== 'success' ? (
-                                        <span>{patient.med} @ {patient.time}</span>
-                                    ) : (
-                                        <span>No pending tasks</span>
-                                    )}
+                                    <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold uppercase ${statusPillColors[order.status === 'active' ? 'warning' : 'success']}`}>
+                                        {order.status}
+                                    </span>
+                                    <span>{order.drug?.name || 'Unknown drug'} - {order.dosage} units</span>
                                 </div>
+                                <div className="text-xs text-gray-400 mt-1">{order.schedule}</div>
                             </div>
                             <div className="ml-2">
                                 <svg className="w-6 h-6 text-gray-400" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"></path></svg>
@@ -121,24 +149,59 @@ const DoctorPWA = () => {
               <p>Profile content goes here.</p>
             </Modal>
             <Modal isOpen={isOrderOpen} onClose={() => setOrderOpen(false)} title="New Order">
-              <form className="space-y-4">
+              <form className="space-y-4" onSubmit={handleCreateOrder}>
                 <div>
-                  <label htmlFor="patient" className="block font-semibold mb-1">Patient</label>
-                  <input id="patient" className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-200" placeholder="Patient name or ID" />
+                  <label htmlFor="patient" className="block font-semibold mb-1">Patient Name</label>
+                  <input 
+                    id="patient" 
+                    className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-200" 
+                    placeholder="Patient name" 
+                    value={newOrder.patient_name}
+                    onChange={e => setNewOrder({...newOrder, patient_name: e.target.value})}
+                    required
+                  />
                 </div>
                 <div>
                   <label htmlFor="medication" className="block font-semibold mb-1">Medication</label>
-                  <input id="medication" className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-200" placeholder="Medication name" />
+                  <select 
+                    id="medication" 
+                    className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    value={newOrder.drug_id}
+                    onChange={e => setNewOrder({...newOrder, drug_id: parseInt(e.target.value)})}
+                    required
+                  >
+                    <option value="">Select medication</option>
+                    {drugs.map(drug => (
+                        <option key={drug.id} value={drug.id}>
+                            {drug.name} ({drug.strength}) - Stock: {drug.current_stock}
+                        </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
-                  <label htmlFor="dose" className="block font-semibold mb-1">Dose</label>
-                  <input id="dose" className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-200" placeholder="Dose" />
+                  <label htmlFor="dose" className="block font-semibold mb-1">Dosage (units)</label>
+                  <input 
+                    id="dose" 
+                    type="number"
+                    className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-200" 
+                    placeholder="Dosage" 
+                    value={newOrder.dosage}
+                    onChange={e => setNewOrder({...newOrder, dosage: parseInt(e.target.value)})}
+                    required
+                  />
                 </div>
                 <div>
-                  <label htmlFor="instructions" className="block font-semibold mb-1">Instructions</label>
-                  <textarea id="instructions" className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-200" placeholder="Instructions"></textarea>
+                  <label htmlFor="instructions" className="block font-semibold mb-1">Schedule</label>
+                  <input 
+                    id="instructions" 
+                    className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-200" 
+                    placeholder="e.g., every 6 hours" 
+                    value={newOrder.schedule}
+                    onChange={e => setNewOrder({...newOrder, schedule: e.target.value})}
+                    required
+                  />
                 </div>
-                <button type="submit" className="w-full py-2 px-4 rounded bg-blue-600 text-white font-semibold hover:bg-blue-700 transition">Submit</button>
+                <button type="submit" className="w-full py-2 px-4 rounded bg-blue-600 text-white font-semibold hover:bg-blue-700 transition">Submit Order</button>
               </form>
             </Modal>
         </div>

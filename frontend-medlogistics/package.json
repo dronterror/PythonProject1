@@ -4,15 +4,19 @@
   "private": true,
   "description": "Mobile-first Medication Logistics PWA for ValMed",
   "dependencies": {
+    "axios": "^1.4.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.8.0",
-    "axios": "^1.4.0"
+    "react-router-dom": "^6.8.0"
   },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview --host 0.0.0.0"
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage",
+    "test:run": "vitest run"
   },
   "eslintConfig": {
     "extends": [
@@ -42,11 +46,18 @@
     "orientation": "portrait"
   },
   "devDependencies": {
-    "vite": "^4.0.0",
     "@vitejs/plugin-react": "^4.0.0",
-    "vite-plugin-pwa": "^0.16.0",
-    "tailwindcss": "^3.0.0",
+    "autoprefixer": "^10.0.0",
     "postcss": "^8.0.0",
-    "autoprefixer": "^10.0.0"
+    "tailwindcss": "^3.0.0",
+    "vite": "^4.5.14",
+    "vite-plugin-pwa": "^0.16.0",
+    "@testing-library/react": "^14.0.0",
+    "@testing-library/jest-dom": "^6.1.0",
+    "@testing-library/user-event": "^14.5.0",
+    "vitest": "^0.34.0",
+    "@vitest/ui": "^0.34.0",
+    "jsdom": "^22.1.0",
+    "@vitest/coverage-v8": "^0.34.0"
   }
-} 
+}

@@ -1,16 +1,13 @@
 fastapi
-uvicorn[standard]
+uvicorn
 sqlalchemy
-psycopg2-binary
-jinja2
-python-jose[cryptography]
+pydantic[email]
 passlib[bcrypt]
-web3
-email-validator
-python-multipart
-# Performance optimizations
-gunicorn
-redis
-aioredis
+python-dotenv
+psycopg2-binary
+pytest
+pytest-asyncio
+pytest-cov
 httpx
-pydantic[email] 
+factory-boy
+faker 

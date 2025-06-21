@@ -31,7 +31,17 @@ const Modal = ({ isOpen, onClose, title, children }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 animate-fade-in" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabIndex={-1}>
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 animate-fade-in" 
+      role="dialog" 
+      aria-modal="true" 
+      aria-labelledby="modal-title" 
+      tabIndex={-1}
+      data-testid="modal-backdrop"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
       <div
         className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col outline-none animate-modal-slide-in"
         ref={modalRef}
