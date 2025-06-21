@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date, ForeignKey, Float, Enum, DateTime
+from sqlalchemy import Column, Integer, String, Date, ForeignKey, Float, Enum, DateTime, Text
 from sqlalchemy.orm import relationship
 from database import Base
 import enum
@@ -8,6 +8,7 @@ class UserRole(enum.Enum):
     doctor = "doctor"
     nurse = "nurse"
     analyst = "analyst"
+    admin = "admin"
 
 class User(Base):
     __tablename__ = "users"
@@ -15,6 +16,8 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     password_hash = Column(String, nullable=False)
     role = Column(Enum(UserRole), nullable=False)
+    reports = relationship("Report", back_populates="creator")
+    audit_logs = relationship("AuditLog", back_populates="user")
 
 class Patient(Base):
     __tablename__ = "patients"
@@ -69,14 +72,18 @@ class Report(Base):
     __tablename__ = "reports"
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, nullable=False)
-    content = Column(String)
-    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    content = Column(Text, nullable=False)
+    created_by = Column(Integer, ForeignKey("users.id"))
     created_at = Column(DateTime, default=datetime.utcnow)
+    creator = relationship("User", back_populates="reports")
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"
     id = Column(Integer, primary_key=True, index=True)
     action = Column(String, nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
     timestamp = Column(DateTime, default=datetime.utcnow)
-    details = Column(String) 
+    details = Column(Text)
+    ip_address = Column(String)
+    user_agent = Column(String)
+    user = relationship("User", back_populates="audit_logs") 
