@@ -130,18 +130,19 @@ services:
   frontend:
     build:
       context: ./frontend-react
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
       cache_from:
         - valmed-frontend:cache
     volumes:
+      - ./frontend-react:/app
       - /app/node_modules
       - frontend_cache:/root/.npm
     environment:
       - REACT_APP_API_URL=http://localhost
       - CHOKIDAR_USEPOLLING=true
-      # Performance environment variables
-      - NODE_ENV=production
-      - GENERATE_SOURCEMAP=false
+      # Development environment variables
+      - NODE_ENV=development
+      - GENERATE_SOURCEMAP=true
     depends_on:
       - backend
     restart: unless-stopped
@@ -157,7 +158,7 @@ services:
     #   start_period: 40s
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.frontend.rule=Host(`localhost`) && !PathPrefix(`/patients`) && !PathPrefix(`/drugs`) && !PathPrefix(`/prescriptions`) && !PathPrefix(`/analyses`) && !PathPrefix(`/reports`) && !PathPrefix(`/dev`) && !PathPrefix(`/metrics`) && !PathPrefix(`/blockchain`) && !PathPrefix(`/analytics`) && !PathPrefix(`/dashboard`) && !PathPrefix(`/export`) && !PathPrefix(`/audit-logs`) && !PathPrefix(`/token`) && !PathPrefix(`/register`)"
+      - "traefik.http.routers.frontend.rule=Host(`localhost`) && !PathPrefix(`/patients`) && !PathPrefix(`/drugs`) && !PathPrefix(`/prescriptions`) && !PathPrefix(`/analyses`) && !PathPrefix(`/reports`) && !PathPrefix(`/dev`) && !PathPrefix(`/metrics`) && !PathPrefix(`/blockchain`) && !PathPrefix(`/analytics`) && !PathPrefix(`/dashboard`) && !PathPrefix(`/export`) && !PathPrefix(`/audit-logs`) && !PathPrefix(`/token`) && !PathPrefix(`/register`) && !PathPrefix(`/medication`)"
       - "traefik.http.services.frontend.loadbalancer.server.port=3000"
       - "traefik.http.routers.frontend.entrypoints=web"
       - "traefik.http.routers.frontend.priority=1"
@@ -171,146 +172,180 @@ services:
       - "traefik.http.middlewares.frontend-security.headers.customFrameOptionsValue=SAMEORIGIN"
       - "traefik.http.routers.frontend.middlewares=frontend-compression,frontend-security"
 
-  ganache:
-    image: trufflesuite/ganache-cli
-    ports:
-      - "8545:8545"
-    command: ["--accounts", "10", "--defaultBalanceEther", "1000"]
+  frontend-medlogistics:
+    build:
+      context: ./frontend-medlogistics
+      dockerfile: Dockerfile.dev
+    volumes:
+      # - ./frontend-medlogistics:/app  # Commented out to prevent overwriting dist/ in preview/production
+      - /app/node_modules
+      - medlogistics_cache:/root/.npm
+    environment:
+      - VITE_API_URL=http://backend:8000
+      - NODE_ENV=production
+    depends_on:
+      - backend
     restart: unless-stopped
     networks:
       - traefik-network
-    # Performance optimizations
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
-        reservations:
-          cpus: '0.25'
-          memory: 256M
-
-  airflow-webserver:
-    image: apache/airflow:2.8.1
-    restart: always
-    depends_on:
-      - airflow-init
-      - airflow-db
-    environment:
-      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
-      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
-      - AIRFLOW__CORE__FERNET_KEY=yourfernetkeyhere
-      - AIRFLOW__CORE__LOAD_EXAMPLES=False
-      - AIRFLOW__WEBSERVER__SECRET_KEY=yourwebsecretkey
-      - _AIRFLOW_WWW_USER_USERNAME=airflow
-      - _AIRFLOW_WWW_USER_PASSWORD=airflow
-      - AIRFLOW_UID=50000
-      # Performance optimizations
-      - AIRFLOW__WEBSERVER__WORKERS=4
-      - AIRFLOW__WEBSERVER__WORKER_REFRESH_BATCH_SIZE=1
-      - AIRFLOW__WEBSERVER__WORKER_REFRESH_INTERVAL=30
     ports:
-      - "8080:8080"
-    volumes:
-      - ./airflow/dags:/opt/airflow/dags
-      - airflow_data:/opt/airflow
-    command: webserver
-    networks:
-      - traefik-network
-    # Performance optimizations
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 1G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
+      - "4173:80"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.airflow.rule=PathPrefix(`/airflow`)"
-      - "traefik.http.services.airflow.loadbalancer.server.port=8080"
-      - "traefik.http.routers.airflow.entrypoints=web"
-      - "traefik.http.routers.airflow.priority=20"
+      - "traefik.http.routers.medlogistics.rule=PathPrefix(`/medication`)"
+      - "traefik.http.services.medlogistics.loadbalancer.server.port=80"
+      - "traefik.http.routers.medlogistics.entrypoints=web"
+      - "traefik.http.routers.medlogistics.priority=10"
+      - "traefik.http.services.medlogistics.loadbalancer.sticky.cookie=true"
+      - "traefik.http.services.medlogistics.loadbalancer.sticky.cookie.name=medlogistics_session"
+      - "traefik.http.middlewares.medlogistics-compression.compress=true"
+      - "traefik.http.middlewares.medlogistics-security.headers.stsSeconds=31536000"
+      - "traefik.http.middlewares.medlogistics-security.headers.stsIncludeSubdomains=true"
+      - "traefik.http.middlewares.medlogistics-security.headers.stsPreload=true"
+      - "traefik.http.middlewares.medlogistics-security.headers.forceSTSHeader=true"
+      - "traefik.http.middlewares.medlogistics-security.headers.customFrameOptionsValue=SAMEORIGIN"
+      - "traefik.http.routers.medlogistics.middlewares=medlogistics-compression,medlogistics-security"
 
-  airflow-scheduler:
-    image: apache/airflow:2.8.1
-    restart: always
-    depends_on:
-      - airflow-init
-      - airflow-db
-    environment:
-      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
-      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
-      - AIRFLOW__CORE__FERNET_KEY=yourfernetkeyhere
-      - AIRFLOW__CORE__LOAD_EXAMPLES=False
-      - AIRFLOW__WEBSERVER__SECRET_KEY=yourwebsecretkey
-      - AIRFLOW_UID=50000
-      # Performance optimizations
-      - AIRFLOW__SCHEDULER__JOB_HEARTBEAT_SEC=5
-      - AIRFLOW__SCHEDULER__SCHEDULER_HEARTBEAT_SEC=5
-      - AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL=300
-    volumes:
-      - ./airflow/dags:/opt/airflow/dags
-      - airflow_data:/opt/airflow
-    command: scheduler
-    networks:
-      - traefik-network
-    # Performance optimizations
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
-        reservations:
-          cpus: '0.25'
-          memory: 256M
+  # ganache:
+  #   image: trufflesuite/ganache-cli
+  #   ports:
+  #     - "8545:8545"
+  #   command: ["--accounts", "10", "--defaultBalanceEther", "1000"]
+  #   restart: unless-stopped
+  #   networks:
+  #     - traefik-network
+  #   # Performance optimizations
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: '0.5'
+  #         memory: 512M
+  #       reservations:
+  #         cpus: '0.25'
+  #         memory: 256M
 
-  airflow-init:
-    image: apache/airflow:2.8.1
-    depends_on:
-      - airflow-db
-    environment:
-      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
-      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
-      - AIRFLOW__CORE__FERNET_KEY=yourfernetkeyhere
-      - AIRFLOW__CORE__LOAD_EXAMPLES=False
-      - AIRFLOW__WEBSERVER__SECRET_KEY=yourwebsecretkey
-      - _AIRFLOW_WWW_USER_USERNAME=airflow
-      - _AIRFLOW_WWW_USER_PASSWORD=airflow
-      - AIRFLOW_UID=50000
-    entrypoint: /bin/bash
-    command: -c "airflow db migrate && airflow users create --username airflow --password airflow --firstname Airflow --lastname Admin --role Admin --email airflow@airflow.com"
-    volumes:
-      - ./airflow/dags:/opt/airflow/dags
-      - airflow_data:/opt/airflow
-    networks:
-      - traefik-network
+  # airflow-webserver:
+  #   image: apache/airflow:2.8.1
+  #   restart: always
+  #   depends_on:
+  #     - airflow-init
+  #     - airflow-db
+  #   environment:
+  #     - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+  #     - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
+  #     - AIRFLOW__CORE__FERNET_KEY=yourfernetkeyhere
+  #     - AIRFLOW__CORE__LOAD_EXAMPLES=False
+  #     - AIRFLOW__WEBSERVER__SECRET_KEY=yourwebsecretkey
+  #     - _AIRFLOW_WWW_USER_USERNAME=airflow
+  #     - _AIRFLOW_WWW_USER_PASSWORD=airflow
+  #     - AIRFLOW_UID=50000
+  #     # Performance optimizations
+  #     - AIRFLOW__WEBSERVER__WORKERS=4
+  #     - AIRFLOW__WEBSERVER__WORKER_REFRESH_BATCH_SIZE=1
+  #     - AIRFLOW__WEBSERVER__WORKER_REFRESH_INTERVAL=30
+  #   ports:
+  #     - "8080:8080"
+  #   volumes:
+  #     - ./airflow/dags:/opt/airflow/dags
+  #     - airflow_data:/opt/airflow
+  #   command: webserver
+  #   networks:
+  #     - traefik-network
+  #   # Performance optimizations
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: '1.0'
+  #         memory: 1G
+  #       reservations:
+  #         cpus: '0.5'
+  #         memory: 512M
+  #   labels:
+  #     - "traefik.enable=true"
+  #     - "traefik.http.routers.airflow.rule=PathPrefix(`/airflow`)"
+  #     - "traefik.http.services.airflow.loadbalancer.server.port=8080"
+  #     - "traefik.http.routers.airflow.entrypoints=web"
+  #     - "traefik.http.routers.airflow.priority=20"
 
-  airflow-db:
-    image: postgres:15
-    environment:
-      POSTGRES_USER: airflow
-      POSTGRES_PASSWORD: airflow
-      POSTGRES_DB: airflow
-    volumes:
-      - airflow_postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U airflow"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: always
-    networks:
-      - traefik-network
-    # Performance optimizations
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
-        reservations:
-          cpus: '0.25'
-          memory: 256M
+  # airflow-scheduler:
+  #   image: apache/airflow:2.8.1
+  #   restart: always
+  #   depends_on:
+  #     - airflow-init
+  #     - airflow-db
+  #   environment:
+  #     - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+  #     - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
+  #     - AIRFLOW__CORE__FERNET_KEY=yourfernetkeyhere
+  #     - AIRFLOW__CORE__LOAD_EXAMPLES=False
+  #     - AIRFLOW__WEBSERVER__SECRET_KEY=yourwebsecretkey
+  #     - AIRFLOW_UID=50000
+  #     # Performance optimizations
+  #     - AIRFLOW__SCHEDULER__JOB_HEARTBEAT_SEC=5
+  #     - AIRFLOW__SCHEDULER__SCHEDULER_HEARTBEAT_SEC=5
+  #     - AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL=300
+  #   volumes:
+  #     - ./airflow/dags:/opt/airflow/dags
+  #     - airflow_data:/opt/airflow
+  #   command: scheduler
+  #   networks:
+  #     - traefik-network
+  #   # Performance optimizations
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: '0.5'
+  #         memory: 512M
+  #       reservations:
+  #         cpus: '0.25'
+  #         memory: 256M
+
+  # airflow-init:
+  #   image: apache/airflow:2.8.1
+  #   depends_on:
+  #     - airflow-db
+  #   environment:
+  #     - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+  #     - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
+  #     - AIRFLOW__CORE__FERNET_KEY=yourfernetkeyhere
+  #     - AIRFLOW__CORE__LOAD_EXAMPLES=False
+  #     - AIRFLOW__WEBSERVER__SECRET_KEY=yourwebsecretkey
+  #     - _AIRFLOW_WWW_USER_USERNAME=airflow
+  #     - _AIRFLOW_WWW_USER_PASSWORD=airflow
+  #     - AIRFLOW_UID=50000
+  #   entrypoint: /bin/bash
+  #   command: -c "airflow db migrate && airflow users create --username airflow --password airflow --firstname Airflow --lastname Admin --role Admin --email airflow@airflow.com"
+  #   volumes:
+  #     - ./airflow/dags:/opt/airflow/dags
+  #     - airflow_data:/opt/airflow
+  #   networks:
+  #     - traefik-network
+
+  # airflow-db:
+  #   image: postgres:15
+  #   environment:
+  #     POSTGRES_USER: airflow
+  #     POSTGRES_PASSWORD: airflow
+  #     POSTGRES_DB: airflow
+  #   volumes:
+  #     - airflow_postgres_data:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U airflow"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #   restart: always
+  #   networks:
+  #     - traefik-network
+  #   # Performance optimizations
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: '0.5'
+  #         memory: 512M
+  #       reservations:
+  #         cpus: '0.25'
+  #         memory: 256M
 
 networks:
   traefik-network:
@@ -329,6 +364,8 @@ volumes:
   backend_cache:
     driver: local
   frontend_cache:
+    driver: local
+  medlogistics_cache:
     driver: local
 
 # For K8s: Move env vars to secrets/configmaps, use persistent volumes, and healthchecks as needed.

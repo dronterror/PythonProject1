@@ -15,7 +15,7 @@ function App() {
       <div className="App">
         <nav className="navbar">
           <div className="nav-brand">
-            <h1>ValMed</h1>
+            <h1>ValMed ICER Platform</h1>
           </div>
           <div className="nav-links">
             <Link to="/" className="nav-link">Dashboard</Link>

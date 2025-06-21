@@ -439,63 +439,69 @@ def get_qaly(db: Session = Depends(get_db), user: models.User = Depends(auth.req
 def create_report(report: schemas.ReportCreate, db: Session = Depends(get_db)):
     return crud.create_report(db, report)
 
-@app.get("/reports", response_model=List[schemas.ReportOut])
-def get_reports(db: Session = Depends(get_db)):
-    return crud.get_reports(db)
+@app.get("/reports/", response_model=List[schemas.ReportOut])
+def get_reports(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), user: models.User = Depends(auth.require_analyst)):
+    """Get all reports"""
+    reports = crud.get_reports(db, skip=skip, limit=limit)
+    return reports
 
 @app.get("/reports/{report_id}", response_model=schemas.ReportOut)
-def get_report(report_id: int, db: Session = Depends(get_db)):
-    return crud.get_report(db, report_id)
+def get_report(report_id: int, db: Session = Depends(get_db), user: models.User = Depends(auth.require_analyst)):
+    """Get a specific report"""
+    report = crud.get_report(db, report_id=report_id)
+    if report is None:
+        raise HTTPException(status_code=404, detail="Report not found")
+    return report
 
 # Audit log endpoints
 @app.post("/audit-logs", response_model=schemas.AuditLogOut)
 def create_audit_log(audit_log: schemas.AuditLogCreate, db: Session = Depends(get_db)):
     return crud.create_audit_log(db, audit_log)
 
-@app.get("/audit-logs/", response_model=List[schemas.AuditLog])
+@app.get("/audit-logs/", response_model=List[schemas.AuditLogOut])
 def get_audit_logs(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), user: models.User = Depends(auth.require_admin)):
     """Get all audit logs (admin only)"""
     audit_logs = crud.get_audit_logs(db, skip=skip, limit=limit)
     return audit_logs
 
-@app.get("/audit-logs/user/{user_id}", response_model=List[schemas.AuditLog])
+@app.get("/audit-logs/user/{user_id}", response_model=List[schemas.AuditLogOut])
 def get_audit_logs_by_user(user_id: int, skip: int = 0, limit: int = 100, db: Session = Depends(get_db), user: models.User = Depends(auth.require_admin)):
     """Get audit logs for a specific user (admin only)"""
     audit_logs = crud.get_audit_logs_by_user(db, user_id=user_id, skip=skip, limit=limit)
     return audit_logs
 
-@app.get("/audit-logs/action/{action}", response_model=List[schemas.AuditLog])
+@app.get("/audit-logs/action/{action}", response_model=List[schemas.AuditLogOut])
 def get_audit_logs_by_action(action: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db), user: models.User = Depends(auth.require_admin)):
     """Get audit logs for a specific action (admin only)"""
     audit_logs = crud.get_audit_logs_by_action(db, action=action, skip=skip, limit=limit)
     return audit_logs
 
-@app.get("/audit-logs/my-activity", response_model=List[schemas.AuditLog])
+@app.get("/audit-logs/my-activity", response_model=List[schemas.AuditLogOut])
 def get_my_audit_logs(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), user: models.User = Depends(auth.require_authenticated)):
     """Get current user's audit logs"""
     audit_logs = crud.get_audit_logs_by_user(db, user_id=user.id, skip=skip, limit=limit)
     return audit_logs
 
 # Development endpoints (no authentication required)
-@app.get("/dev/audit-logs/", response_model=List[schemas.AuditLog])
+@app.get("/dev/audit-logs/", response_model=List[schemas.AuditLogOut])
 def get_audit_logs_dev(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     """Get all audit logs (development version - no auth required)"""
     audit_logs = crud.get_audit_logs(db, skip=skip, limit=limit)
     return audit_logs
 
-@app.get("/dev/audit-logs/user/{user_id}", response_model=List[schemas.AuditLog])
+@app.get("/dev/audit-logs/user/{user_id}", response_model=List[schemas.AuditLogOut])
 def get_audit_logs_by_user_dev(user_id: int, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     """Get audit logs for a specific user (development version - no auth required)"""
     audit_logs = crud.get_audit_logs_by_user(db, user_id=user_id, skip=skip, limit=limit)
     return audit_logs
 
-@app.get("/dev/audit-logs/action/{action}", response_model=List[schemas.AuditLog])
+@app.get("/dev/audit-logs/action/{action}", response_model=List[schemas.AuditLogOut])
 def get_audit_logs_by_action_dev(action: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     """Get audit logs for a specific action (development version - no auth required)"""
     audit_logs = crud.get_audit_logs_by_action(db, action=action, skip=skip, limit=limit)
     return audit_logs
 
-@app.get("/dev/audit-logs/my-activity", response_model=List[schemas.AuditLog])
+@app.get("/dev/audit-logs/my-activity", response_model=List[schemas.AuditLogOut])
 def get_my_audit_logs_dev(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     """Get current user's audit logs (development version - no auth required)"""
     # For development, return all audit logs
@@ -503,20 +509,6 @@ def get_my_audit_logs_dev(skip: int = 0, limit: int = 100, db: Session = Depends
     return audit_logs
 
 # Report Management Endpoints
-
-@app.get("/reports/", response_model=List[schemas.Report])
-def get_reports(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), user: models.User = Depends(auth.require_analyst)):
-    """Get all reports"""
-    reports = crud.get_reports(db, skip=skip, limit=limit)
-    return reports
-
-@app.get("/reports/{report_id}", response_model=schemas.Report)
-def get_report(report_id: int, db: Session = Depends(get_db), user: models.User = Depends(auth.require_analyst)):
-    """Get a specific report"""
-    report = crud.get_report(db, report_id=report_id)
-    if report is None:
-        raise HTTPException(status_code=404, detail="Report not found")
-    return report
 
 @app.delete("/reports/{report_id}")
 def delete_report(report_id: int, db: Session = Depends(get_db), user: models.User = Depends(auth.require_admin)):
@@ -1364,6 +1356,132 @@ def delete_analysis_dev(analysis_id: int, db: Session = Depends(get_db)):
     if not success:
         raise HTTPException(status_code=404, detail="Analysis not found")
     return {"message": "Analysis deleted successfully"}
+
+# ============================================================================
+# MEDICATION LOGISTICS API ENDPOINTS (New MVP Feature)
+# ============================================================================
+
+# Medication Drug Management (Pharmacy Module)
+
+@app.post("/medication/drugs/", response_model=schemas.MedicationDrugOut)
+def create_medication_drug(drug: schemas.MedicationDrugCreate, db: Session = Depends(get_db), user: models.User = Depends(auth.require_pharmacist)):
+    """Create a new medication drug (Pharmacy Module)"""
+    return crud.create_medication_drug(db, drug)
+
+@app.get("/medication/drugs", response_model=List[schemas.MedicationDrugOut])
+def get_medication_drugs(db: Session = Depends(get_db)):
+    """Get all medication drugs"""
+    return crud.get_medication_drugs(db)
+
+@app.get("/medication/drugs/{drug_id}", response_model=schemas.MedicationDrugOut)
+def get_medication_drug(drug_id: int, db: Session = Depends(get_db)):
+    """Get a specific medication drug"""
+    drug = crud.get_medication_drug(db, drug_id)
+    if not drug:
+        raise HTTPException(status_code=404, detail="Medication drug not found")
+    return drug
+
+@app.put("/medication/drugs/{drug_id}", response_model=schemas.MedicationDrugOut)
+def update_medication_drug(drug_id: int, drug: schemas.MedicationDrugUpdate, db: Session = Depends(get_db), user: models.User = Depends(auth.require_pharmacist)):
+    """Update a medication drug (Pharmacy Module)"""
+    db_drug = crud.update_medication_drug(db, drug_id, drug)
+    if not db_drug:
+        raise HTTPException(status_code=404, detail="Medication drug not found")
+    return db_drug
+
+@app.delete("/medication/drugs/{drug_id}")
+def delete_medication_drug(drug_id: int, db: Session = Depends(get_db), user: models.User = Depends(auth.require_pharmacist)):
+    """Delete a medication drug (Pharmacy Module)"""
+    drug = crud.delete_medication_drug(db, drug_id)
+    if not drug:
+        raise HTTPException(status_code=404, detail="Medication drug not found")
+    return {"message": "Medication drug deleted successfully"}
+
+# Medication Order Management (Prescription Module)
+
+@app.post("/medication/orders/", response_model=schemas.MedicationOrderOut)
+def create_medication_order(order: schemas.MedicationOrderCreate, db: Session = Depends(get_db), user: models.User = Depends(auth.require_doctor)):
+    """Create a new medication order (Prescription Module)"""
+    return crud.create_medication_order(db, order, user.id)
+
+@app.get("/medication/orders", response_model=List[schemas.MedicationOrderOut])
+def get_medication_orders(db: Session = Depends(get_db)):
+    """Get all medication orders"""
+    return crud.get_medication_orders(db)
+
+@app.get("/medication/orders/{order_id}", response_model=schemas.MedicationOrderOut)
+def get_medication_order(order_id: int, db: Session = Depends(get_db)):
+    """Get a specific medication order"""
+    order = crud.get_medication_order(db, order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Medication order not found")
+    return order
+
+@app.put("/medication/orders/{order_id}", response_model=schemas.MedicationOrderOut)
+def update_medication_order(order_id: int, order: schemas.MedicationOrderUpdate, db: Session = Depends(get_db), user: models.User = Depends(auth.require_doctor)):
+    """Update a medication order (Prescription Module)"""
+    db_order = crud.update_medication_order(db, order_id, order)
+    if not db_order:
+        raise HTTPException(status_code=404, detail="Medication order not found")
+    return db_order
+
+@app.delete("/medication/orders/{order_id}")
+def delete_medication_order(order_id: int, db: Session = Depends(get_db), user: models.User = Depends(auth.require_doctor)):
+    """Delete a medication order (Prescription Module)"""
+    order = crud.delete_medication_order(db, order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Medication order not found")
+    return {"message": "Medication order deleted successfully"}
+
+# Medication Administration (Nurse Module)
+
+@app.post("/medication/administrations/", response_model=schemas.MedicationAdministrationOut)
+def create_medication_administration(administration: schemas.MedicationAdministrationCreate, db: Session = Depends(get_db), user: models.User = Depends(auth.require_nurse)):
+    """Create a medication administration record (Nurse Module) - Critical atomic operation"""
+    try:
+        return crud.create_medication_administration(db, administration, user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to record medication administration")
+
+@app.get("/medication/administrations", response_model=List[schemas.MedicationAdministrationOut])
+def get_medication_administrations(db: Session = Depends(get_db)):
+    """Get all medication administrations"""
+    return crud.get_medication_administrations(db)
+
+@app.get("/medication/administrations/{administration_id}", response_model=schemas.MedicationAdministrationOut)
+def get_medication_administration(administration_id: int, db: Session = Depends(get_db)):
+    """Get a specific medication administration"""
+    administration = crud.get_medication_administration(db, administration_id)
+    if not administration:
+        raise HTTPException(status_code=404, detail="Medication administration not found")
+    return administration
+
+# Ward and Dashboard Endpoints
+
+@app.get("/medication/ward/patients", response_model=List[schemas.WardPatientOut])
+def get_ward_patients(db: Session = Depends(get_db)):
+    """Get all patients in the ward with their active medication orders"""
+    return crud.get_ward_patients(db)
+
+@app.get("/medication/nurse/tasks", response_model=List[schemas.PatientMedicationTask])
+def get_nurse_tasks(db: Session = Depends(get_db), user: models.User = Depends(auth.require_nurse)):
+    """Get all medication tasks for nurses (Nurse Module)"""
+    return crud.get_nurse_tasks(db)
+
+@app.get("/medication/pharmacy/alerts", response_model=List[schemas.LowStockAlert])
+def get_low_stock_alerts(db: Session = Depends(get_db), user: models.User = Depends(auth.require_pharmacist)):
+    """Get low stock alerts for pharmacy (Pharmacy Module)"""
+    low_stock_drugs = crud.get_low_stock_medication_drugs(db)
+    alerts = []
+    for drug in low_stock_drugs:
+        alerts.append({
+            "drug": drug,
+            "current_stock": drug.current_stock,
+            "threshold": drug.low_stock_threshold
+        })
+    return alerts
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000) 

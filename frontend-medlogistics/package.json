@@ -1,0 +1,52 @@
+{
+  "name": "valmed-medlogistics-pwa",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Mobile-first Medication Logistics PWA for ValMed",
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.8.0",
+    "axios": "^1.4.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "homepage": ".",
+  "manifest": {
+    "short_name": "MedLogistics",
+    "name": "ValMed Medication Logistics",
+    "description": "Mobile-first medication management system for hospitals",
+    "theme_color": "#2563eb",
+    "background_color": "#667eea",
+    "display": "standalone",
+    "orientation": "portrait"
+  },
+  "devDependencies": {
+    "vite": "^4.0.0",
+    "@vitejs/plugin-react": "^4.0.0",
+    "vite-plugin-pwa": "^0.16.0",
+    "tailwindcss": "^3.0.0",
+    "postcss": "^8.0.0",
+    "autoprefixer": "^10.0.0"
+  }
+} 

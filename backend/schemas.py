@@ -19,17 +19,11 @@ from pydantic import BaseModel, EmailStr
 from typing import Optional, List
 from datetime import date, datetime
 import enum
+from models import UserRole
 
 # ============================================================================
 # USER MANAGEMENT SCHEMAS
 # ============================================================================
-
-class UserRole(str, enum.Enum):
-    """User role enumeration for role-based access control"""
-    doctor = "doctor"      # Can manage patients and prescriptions
-    nurse = "nurse"        # Can view patient data
-    analyst = "analyst"    # Can perform analytics and manage drugs
-    admin = "admin"        # Full system access
 
 class UserBase(BaseModel):
     """Base user model with common fields"""
@@ -40,8 +34,14 @@ class UserCreate(UserBase):
     """Schema for creating new users"""
     password: str          # Plain text password (will be hashed)
 
+class UserUpdate(BaseModel):
+    """Schema for updating users (all fields optional)"""
+    email: Optional[EmailStr] = None
+    password: Optional[str] = None
+    role: Optional[UserRole] = None
+
 class UserOut(UserBase):
-    """Schema for user responses (excludes password)"""
+    """Schema for user responses"""
     id: int                # User ID
     
     class Config:
@@ -116,13 +116,8 @@ class PrescriptionBase(BaseModel):
     """Base prescription model with common fields"""
     patient_id: int        # Reference to patient
     drug_id: int           # Reference to drug
-    prescription_date: Optional[datetime] = None    # When prescribed
-    dosage: Optional[str] = None                    # Dosage instructions
-    duration: Optional[str] = None                  # Treatment duration
-    cost_at_time_of_prescription: Optional[float] = None    # Cost when prescribed
-    effectiveness_at_time_of_prescription: Optional[float] = None  # Effectiveness when prescribed
-    calculated_icer: Optional[float] = None         # Incremental Cost-Effectiveness Ratio
-    qaly_score: Optional[float] = None              # Quality-Adjusted Life Years score
+    dosage: str            # Dosage instructions
+    duration: str          # Treatment duration
 
 class PrescriptionCreate(PrescriptionBase):
     """Schema for creating new prescriptions"""
@@ -132,17 +127,19 @@ class PrescriptionUpdate(BaseModel):
     """Schema for updating prescriptions (all fields optional)"""
     patient_id: Optional[int] = None
     drug_id: Optional[int] = None
-    prescription_date: Optional[datetime] = None
     dosage: Optional[str] = None
     duration: Optional[str] = None
-    cost_at_time_of_prescription: Optional[float] = None
-    effectiveness_at_time_of_prescription: Optional[float] = None
-    calculated_icer: Optional[float] = None
-    qaly_score: Optional[float] = None
 
 class PrescriptionOut(PrescriptionBase):
     """Schema for prescription responses"""
     id: int                # Prescription ID
+    prescription_date: Optional[datetime] = None
+    cost_at_time_of_prescription: Optional[float] = None
+    effectiveness_at_time_of_prescription: Optional[float] = None
+    calculated_icer: Optional[float] = None
+    qaly_score: Optional[float] = None
+    patient: PatientOut
+    drug: DrugOut
     
     class Config:
         from_attributes = True
@@ -151,9 +148,15 @@ class PrescriptionOut(PrescriptionBase):
 # ANALYSIS MANAGEMENT SCHEMAS
 # ============================================================================
 
+class AnalysisType(str, enum.Enum):
+    """Analysis type enumeration"""
+    ICER = "ICER"
+    QALY = "QALY"
+    BIA = "BIA"
+
 class AnalysisBase(BaseModel):
     """Base analysis model with common fields"""
-    type: str              # Type of analysis performed
+    type: AnalysisType
     input_data: str        # Input data for analysis
     result: Optional[str] = None    # Analysis results
     user_id: Optional[int] = None   # User who performed analysis
@@ -164,7 +167,7 @@ class AnalysisCreate(AnalysisBase):
 
 class AnalysisUpdate(BaseModel):
     """Schema for updating analyses (all fields optional)"""
-    type: Optional[str] = None
+    type: Optional[AnalysisType] = None
     input_data: Optional[str] = None
     result: Optional[str] = None
     user_id: Optional[int] = None
@@ -190,20 +193,17 @@ class ReportCreate(ReportBase):
     """Schema for creating new reports"""
     pass
 
-class Report(ReportBase):
+class ReportUpdate(BaseModel):
+    """Schema for updating reports (all fields optional)"""
+    title: Optional[str] = None
+    content: Optional[str] = None
+
+class ReportOut(ReportBase):
     """Schema for report responses"""
     id: int                # Report ID
     created_by: int        # User who created the report
     created_at: datetime   # When report was created
-    
-    class Config:
-        from_attributes = True
-
-class ReportOut(ReportBase):
-    """Schema for report responses (alternative)"""
-    id: int                # Report ID
-    created_by: int        # User who created the report
-    created_at: datetime   # When report was created
+    creator: UserOut
     
     class Config:
         from_attributes = True
@@ -221,22 +221,141 @@ class AuditLogBase(BaseModel):
 
 class AuditLogCreate(AuditLogBase):
     """Schema for creating new audit logs"""
-    user_id: int           # User who performed the action
+    pass
 
-class AuditLog(AuditLogBase):
+class AuditLogOut(AuditLogBase):
     """Schema for audit log responses"""
     id: int                # Audit log ID
-    user_id: int           # User who performed the action
+    user_id: Optional[int] = None
     timestamp: datetime    # When action was performed
+    user: Optional[UserOut] = None
     
     class Config:
         from_attributes = True
 
-class AuditLogOut(AuditLogBase):
-    """Schema for audit log responses (alternative)"""
-    id: int                # Audit log ID
-    user_id: int           # User who performed the action
-    timestamp: datetime    # When action was performed
+# ============================================================================
+# MEDICATION LOGISTICS SCHEMAS
+# ============================================================================
+
+class MedicationDrugBase(BaseModel):
+    """Base medication drug model for inventory management"""
+    name: str
+    form: str
+    strength: str
+    current_stock: int
+    low_stock_threshold: int
+
+class MedicationDrugCreate(MedicationDrugBase):
+    """Schema for creating new medication drugs"""
+    pass
+
+class MedicationDrugUpdate(BaseModel):
+    """Schema for updating medication drugs (all fields optional)"""
+    name: Optional[str] = None
+    form: Optional[str] = None
+    strength: Optional[str] = None
+    current_stock: Optional[int] = None
+    low_stock_threshold: Optional[int] = None
+
+class MedicationDrugOut(MedicationDrugBase):
+    """Schema for medication drug responses"""
+    id: int
     
     class Config:
-        from_attributes = True 
+        from_attributes = True
+
+class MedicationOrderBase(BaseModel):
+    """Base medication order model"""
+    patient_name: str
+    patient_bed_number: str
+    drug_id: int
+    dosage: str
+    schedule: str
+
+class MedicationOrderCreate(MedicationOrderBase):
+    """Schema for creating new medication orders"""
+    pass
+
+class MedicationOrderUpdate(BaseModel):
+    """Schema for updating medication orders (all fields optional)"""
+    patient_name: Optional[str] = None
+    patient_bed_number: Optional[str] = None
+    drug_id: Optional[int] = None
+    dosage: Optional[str] = None
+    schedule: Optional[str] = None
+    status: Optional[str] = None
+
+class MedicationOrderOut(MedicationOrderBase):
+    """Schema for medication order responses"""
+    id: int
+    status: str
+    doctor_id: int
+    created_at: datetime
+    drug: MedicationDrugOut
+    
+    class Config:
+        from_attributes = True
+
+class MedicationAdministrationBase(BaseModel):
+    """Base medication administration model"""
+    order_id: int
+
+class MedicationAdministrationCreate(MedicationAdministrationBase):
+    """Schema for creating new medication administrations"""
+    pass
+
+class MedicationAdministrationOut(MedicationAdministrationBase):
+    """Schema for medication administration responses"""
+    id: int
+    nurse_id: int
+    administration_time: datetime
+    status: str
+    
+    class Config:
+        from_attributes = True
+
+# ============================================================================
+# MEDICATION LOGISTICS DASHBOARD SCHEMAS
+# ============================================================================
+
+class WardPatientOut(BaseModel):
+    """Schema for ward patient view"""
+    name: str
+    bed_number: str
+    active_orders: List[MedicationOrderOut]
+    
+    class Config:
+        from_attributes = True
+
+class LowStockAlert(BaseModel):
+    """Schema for low stock alert"""
+    drug: MedicationDrugOut
+    current_stock: int
+    threshold: int
+    
+    class Config:
+        from_attributes = True
+
+class PatientMedicationTask(BaseModel):
+    """Schema for patient medication task"""
+    patient_name: str
+    bed_number: str
+    order: MedicationOrderOut
+    due_time: Optional[datetime] = None
+    status: str  # 'due', 'completed', 'missed'
+    
+    class Config:
+        from_attributes = True
+
+# ============================================================================
+# AUTHENTICATION SCHEMAS
+# ============================================================================
+
+class Token(BaseModel):
+    """Schema for authentication token"""
+    access_token: str
+    token_type: str
+
+class TokenData(BaseModel):
+    """Schema for token data"""
+    email: Optional[str] = None 

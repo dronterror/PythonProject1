@@ -9,6 +9,7 @@ class UserRole(enum.Enum):
     nurse = "nurse"
     analyst = "analyst"
     admin = "admin"
+    pharmacist = "pharmacist"
 
 class User(Base):
     __tablename__ = "users"
@@ -86,4 +87,49 @@ class AuditLog(Base):
     details = Column(Text)
     ip_address = Column(String)
     user_agent = Column(String)
-    user = relationship("User", back_populates="audit_logs") 
+    user = relationship("User", back_populates="audit_logs")
+
+# ============================================================================
+# MEDICATION LOGISTICS MODELS (New MVP Feature)
+# ============================================================================
+
+class MedicationDrug(Base):
+    """Drug inventory for medication logistics (separate from ICER drugs)"""
+    __tablename__ = "medication_drugs"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    form = Column(String, nullable=False)  # e.g., "Tablet", "Ampoule"
+    strength = Column(String, nullable=False)  # e.g., "500mg"
+    current_stock = Column(Integer, default=0)
+    low_stock_threshold = Column(Integer, default=10)
+
+class MedicationOrder(Base):
+    """Medication orders (prescriptions) for the logistics system"""
+    __tablename__ = "medication_orders"
+    id = Column(Integer, primary_key=True, index=True)
+    patient_name = Column(String, nullable=False)
+    patient_bed_number = Column(String, nullable=False)
+    drug_id = Column(Integer, ForeignKey("medication_drugs.id"), nullable=False)
+    dosage = Column(String, nullable=False)
+    schedule = Column(String, nullable=False)  # e.g., "Twice a day"
+    status = Column(String, default="active")  # 'active', 'discontinued'
+    doctor_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    drug = relationship("MedicationDrug")
+    doctor = relationship("User")
+    administrations = relationship("MedicationAdministration", back_populates="order")
+
+class MedicationAdministration(Base):
+    """Medication administration records"""
+    __tablename__ = "medication_administrations"
+    id = Column(Integer, primary_key=True, index=True)
+    order_id = Column(Integer, ForeignKey("medication_orders.id"), nullable=False)
+    nurse_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    administration_time = Column(DateTime, default=datetime.utcnow)
+    status = Column(String, default="completed")  # 'completed', 'missed_exception'
+    
+    # Relationships
+    order = relationship("MedicationOrder", back_populates="administrations")
+    nurse = relationship("User") 

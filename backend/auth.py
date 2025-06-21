@@ -70,4 +70,9 @@ def require_admin(current_user: models.User = Depends(get_current_user)):
 
 def require_authenticated(current_user: models.User = Depends(get_current_user)):
     """Require any authenticated user (no specific role required)"""
+    return current_user
+
+def require_pharmacist(current_user: models.User = Depends(get_current_user)):
+    if current_user.role != models.UserRole.pharmacist:
+        raise HTTPException(status_code=403, detail="Pharmacist access required")
     return current_user 
