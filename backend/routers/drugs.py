@@ -3,9 +3,9 @@ from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 import uuid
 from models import Drug
-from schemas import DrugOut, DrugCreate, DrugUpdate
+from schemas import DrugOut, DrugCreate, DrugUpdate, DrugTransferCreate, DrugTransferOut
 from dependencies import require_role, get_db, get_current_user
-from crud import create_drug, update_drug, get_drugs, get_low_stock_drugs, get_formulary, get_inventory_status
+from crud import create_drug, update_drug, get_drugs, get_low_stock_drugs, get_formulary, get_inventory_status, transfer_drug_stock
 
 router = APIRouter(prefix="/drugs", tags=["drugs"])
 
@@ -24,6 +24,24 @@ def update_drug_endpoint(drug_id: uuid.UUID, drug: DrugUpdate, db: Session = Dep
     if not db_drug:
         raise HTTPException(status_code=404, detail="Drug not found")
     return db_drug
+
+@router.post("/transfer", response_model=DrugTransferOut, dependencies=[Depends(require_role("pharmacist"))])
+def transfer_drug_stock_endpoint(
+    transfer: DrugTransferCreate, 
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    Transfer drug stock between wards.
+    Only pharmacists can perform drug stock transfers.
+    """
+    try:
+        return transfer_drug_stock(db, transfer, current_user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        # Re-raise HTTPExceptions (like 404 for drug not found)
+        raise
 
 @router.get("/low-stock", response_model=List[DrugOut], dependencies=[Depends(require_role("pharmacist"))])
 def get_low_stock_drugs_endpoint(db: Session = Depends(get_db), skip: int = 0, limit: int = Query(100, le=100)):

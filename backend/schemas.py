@@ -80,6 +80,30 @@ class DrugOut(DrugBase):
         from_attributes = True
 
 # ============================================================================
+# DRUG TRANSFER SCHEMAS
+# ============================================================================
+
+class DrugTransferBase(BaseModel):
+    """Base drug transfer model with common fields"""
+    drug_id: uuid.UUID
+    source_ward: str = Field(..., min_length=1, max_length=100)
+    destination_ward: str = Field(..., min_length=1, max_length=100)
+    quantity: int = Field(..., gt=0)
+
+class DrugTransferCreate(DrugTransferBase):
+    """Schema for creating new drug transfers"""
+    pass
+
+class DrugTransferOut(DrugTransferBase):
+    """Schema for drug transfer responses"""
+    id: uuid.UUID
+    pharmacist_id: uuid.UUID
+    transfer_date: datetime
+    
+    class Config:
+        from_attributes = True
+
+# ============================================================================
 # MEDICATION ORDER SCHEMAS
 # ============================================================================
 

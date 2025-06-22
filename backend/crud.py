@@ -138,6 +138,64 @@ def get_inventory_status(db: Session) -> Dict[str, Dict[str, Any]]:
     
     return inventory_status
 
+# Drug Transfer CRUD
+
+def transfer_drug_stock(db: Session, transfer: schemas.DrugTransferCreate, pharmacist_id: uuid.UUID) -> models.DrugTransfer:
+    """
+    Transfer drug stock between wards with business logic validation.
+    
+    Args:
+        db: Database session
+        transfer: Drug transfer data
+        pharmacist_id: ID of the pharmacist performing the transfer
+        
+    Returns:
+        DrugTransfer object
+        
+    Raises:
+        ValueError: For business logic violations
+        HTTPException: For not found errors
+    """
+    # Check if drug exists
+    drug = get_drug(db, transfer.drug_id)
+    if not drug:
+        raise HTTPException(status_code=404, detail="Drug not found")
+    
+    # Check if source and destination wards are different
+    if transfer.source_ward == transfer.destination_ward:
+        raise ValueError("Source and destination wards must be different")
+    
+    # Check if there's sufficient stock
+    if drug.current_stock < transfer.quantity:
+        raise ValueError("Insufficient stock")
+    
+    # Create transfer record
+    db_transfer = models.DrugTransfer(
+        drug_id=transfer.drug_id,
+        source_ward=transfer.source_ward,
+        destination_ward=transfer.destination_ward,
+        quantity=transfer.quantity,
+        pharmacist_id=pharmacist_id
+    )
+    
+    # Decrement stock from source (in this simplified model, we just decrement from total stock)
+    drug.current_stock -= transfer.quantity
+    
+    # Add transfer record and update drug stock
+    db.add(db_transfer)
+    db.commit()
+    db.refresh(db_transfer)
+    
+    return db_transfer
+
+def get_drug_transfers(db: Session, skip: int = 0, limit: int = 100):
+    """Get drug transfer records"""
+    return db.query(models.DrugTransfer).offset(skip).limit(limit).all()
+
+def get_drug_transfer(db: Session, transfer_id: uuid.UUID):
+    """Get a single drug transfer record"""
+    return db.query(models.DrugTransfer).filter(models.DrugTransfer.id == transfer_id).first()
+
 # Medication Order CRUD
 
 def create_medication_order(db: Session, order: schemas.MedicationOrderCreate, doctor_id: int):

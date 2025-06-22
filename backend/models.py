@@ -42,6 +42,24 @@ class Drug(Base):
     def __repr__(self):
         return f"<Drug(id={self.id}, name={self.name}, stock={self.current_stock})>"
 
+class DrugTransfer(Base):
+    """Drug stock transfers between wards"""
+    __tablename__ = "drug_transfers"
+    id = Column(UUID(as_uuid=True), primary_key=True, index=True, default=uuid.uuid4)
+    drug_id = Column(UUID(as_uuid=True), ForeignKey("drugs.id"), nullable=False, index=True)
+    source_ward = Column(String, nullable=False)
+    destination_ward = Column(String, nullable=False)
+    quantity = Column(Integer, nullable=False)
+    pharmacist_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    transfer_date = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    # Relationships
+    drug = relationship("Drug")
+    pharmacist = relationship("User")
+    
+    def __repr__(self):
+        return f"<DrugTransfer(id={self.id}, drug_id={self.drug_id}, from={self.source_ward}, to={self.destination_ward}, qty={self.quantity})>"
+
 class MedicationOrder(Base):
     """Medication orders (prescriptions) for the logistics system"""
     __tablename__ = "medication_orders"
