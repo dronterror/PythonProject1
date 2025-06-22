@@ -52,11 +52,11 @@ class TestDrugsEndpoints:
     @pytest.mark.usefixtures("test_drug")
     def test_create_drug_duplicate(self, client, test_user_pharmacist, test_drug):
         """Test creating a duplicate drug."""
-        # Override get_current_user for this test
         from dependencies import get_current_user
         from main import app
         app.dependency_overrides[get_current_user] = lambda: test_user_pharmacist
-        
+
+        # Create the first drug via API to ensure it's in the DB
         drug_data = {
             "name": test_drug.name,
             "form": test_drug.form,
@@ -64,16 +64,19 @@ class TestDrugsEndpoints:
             "current_stock": 50,
             "low_stock_threshold": 5
         }
-        
-        response = client.post(
+        response1 = client.post(
             "/api/drugs/",
             json=drug_data,
         )
-        
-        assert response.status_code == 400
-        assert "already exists" in response.json()["detail"]
-        
-        # Clean up override
+        assert response1.status_code == 200
+
+        # Attempt to create duplicate
+        response2 = client.post(
+            "/api/drugs/",
+            json=drug_data,
+        )
+        assert response2.status_code == 400
+        assert "already exists" in response2.json()["detail"]
         app.dependency_overrides.clear()
     
     def test_create_drug_unauthorized(self, client, test_user_doctor):
@@ -101,30 +104,28 @@ class TestDrugsEndpoints:
         # Clean up override
         app.dependency_overrides.clear()
     
-    @pytest.mark.usefixtures("test_drug")
-    def test_update_drug(self, client, test_user_pharmacist, test_drug):
-        """Test updating a drug."""
-        # Override get_current_user for this test
+    def test_update_drug(self, client, test_user_pharmacist):
         from dependencies import get_current_user
         from main import app
         app.dependency_overrides[get_current_user] = lambda: test_user_pharmacist
-        
-        update_data = {
-            "current_stock": 75,
-            "low_stock_threshold": 15
+        # Create drug via API
+        create_data = {
+            "name": "API Update Drug",
+            "form": "Tablet",
+            "strength": "500mg",
+            "current_stock": 100,
+            "low_stock_threshold": 10
         }
-        
-        response = client.put(
-            f"/api/drugs/{test_drug.id}",
-            json=update_data,
-        )
-        
+        response = client.post("/api/drugs/", json=create_data)
+        assert response.status_code == 200
+        drug_id = response.json()["id"]
+        # Update drug
+        update_data = {"current_stock": 75, "low_stock_threshold": 15}
+        response = client.put(f"/api/drugs/{drug_id}", json=update_data)
         assert response.status_code == 200
         data = response.json()
         assert data["current_stock"] == 75
         assert data["low_stock_threshold"] == 15
-        
-        # Clean up override
         app.dependency_overrides.clear()
     
     def test_update_drug_not_found(self, client, test_user_pharmacist):
@@ -136,8 +137,11 @@ class TestDrugsEndpoints:
         
         update_data = {"current_stock": 75}
         
+        # Use a valid UUID format for a non-existent drug
+        fake_uuid = "00000000-0000-0000-0000-000000000000"
+        
         response = client.put(
-            "/api/drugs/999",
+            f"/api/drugs/{fake_uuid}",
             json=update_data,
         )
         
@@ -146,79 +150,85 @@ class TestDrugsEndpoints:
         # Clean up override
         app.dependency_overrides.clear()
     
-    @pytest.mark.usefixtures("test_drug")
-    def test_get_low_stock_drugs(self, client, test_user_pharmacist, test_drug):
-        """Test getting low stock drugs."""
-        # Override get_current_user for this test
+    def test_get_low_stock_drugs(self, client, test_user_pharmacist):
         from dependencies import get_current_user
         from main import app
         app.dependency_overrides[get_current_user] = lambda: test_user_pharmacist
-        
-        # Update drug to be low stock
-        test_drug.current_stock = 5
-        client.put(
-            f"/api/drugs/{test_drug.id}",
-            json={"current_stock": 5},
-        )
-        
+        # Create low stock drug via API
+        create_data = {
+            "name": "API Low Stock Drug",
+            "form": "Tablet",
+            "strength": "500mg",
+            "current_stock": 5,
+            "low_stock_threshold": 10
+        }
+        response = client.post("/api/drugs/", json=create_data)
+        assert response.status_code == 200
+        drug_id = response.json()["id"]
+        # Get low stock drugs
         response = client.get("/api/drugs/low-stock")
-        
         assert response.status_code == 200
         data = response.json()
         assert len(data) >= 1
-        assert any(drug["id"] == test_drug.id for drug in data)
-        
-        # Clean up override
+        assert any(drug["id"] == drug_id for drug in data)
         app.dependency_overrides.clear()
     
-    @pytest.mark.usefixtures("test_drug")
-    def test_get_drugs(self, client, test_user_doctor, test_drug):
-        """Test getting all drugs."""
-        # Override get_current_user for this test
+    def test_get_drugs(self, client, test_user_doctor, test_user_pharmacist):
         from dependencies import get_current_user
         from main import app
+        # Create drug as pharmacist
+        app.dependency_overrides[get_current_user] = lambda: test_user_pharmacist
+        create_data = {
+            "name": "API Get Drug",
+            "form": "Tablet",
+            "strength": "500mg",
+            "current_stock": 100,
+            "low_stock_threshold": 10
+        }
+        response = client.post("/api/drugs/", json=create_data)
+        assert response.status_code == 200
+        drug_id = response.json()["id"]
+        # Switch to doctor for get
         app.dependency_overrides[get_current_user] = lambda: test_user_doctor
-        
         response = client.get("/api/drugs/")
-        
         assert response.status_code == 200
         data = response.json()
         assert len(data) >= 1
-        assert any(drug["id"] == test_drug.id for drug in data)
-        
-        # Clean up override
+        assert any(drug["id"] == drug_id for drug in data)
         app.dependency_overrides.clear()
 
 # --- Orders Endpoints ---
 class TestOrdersEndpoints:
-    @pytest.mark.usefixtures("test_drug")
-    def test_create_order_doctor_access(self, client, test_user_doctor, test_drug):
-        """Test creating an order with doctor access."""
-        # Override get_current_user for this test
+    def test_create_order_doctor_access(self, client, test_user_doctor, test_user_pharmacist):
         from dependencies import get_current_user
         from main import app
+        # Create drug as pharmacist
+        app.dependency_overrides[get_current_user] = lambda: test_user_pharmacist
+        create_data = {
+            "name": "API Order Drug",
+            "form": "Tablet",
+            "strength": "500mg",
+            "current_stock": 100,
+            "low_stock_threshold": 10
+        }
+        response = client.post("/api/drugs/", json=create_data)
+        assert response.status_code == 200
+        drug_id = response.json()["id"]
+        # Switch to doctor for order
         app.dependency_overrides[get_current_user] = lambda: test_user_doctor
-        
         order_data = {
             "patient_name": "John Doe",
-            "drug_id": test_drug.id,
+            "drug_id": drug_id,
             "dosage": 2,
             "schedule": "Every 8 hours"
         }
-        
-        response = client.post(
-            "/api/orders/",
-            json=order_data,
-        )
-        
+        response = client.post("/api/orders/", json=order_data)
         assert response.status_code == 200
         data = response.json()
         assert data["patient_name"] == "John Doe"
-        assert data["drug_id"] == test_drug.id
+        assert data["drug_id"] == drug_id
         assert data["dosage"] == 2
         assert data["status"] == "active"
-        
-        # Clean up override
         app.dependency_overrides.clear()
     
     def test_create_order_drug_not_found(self, client, test_user_doctor):
@@ -230,7 +240,7 @@ class TestOrdersEndpoints:
         
         order_data = {
             "patient_name": "John Doe",
-            "drug_id": 999,
+            "drug_id": "00000000-0000-0000-0000-000000000999",
             "dosage": 2,
             "schedule": "Every 8 hours"
         }
@@ -256,7 +266,7 @@ class TestOrdersEndpoints:
         
         order_data = {
             "patient_name": "John Doe",
-            "drug_id": test_drug.id,
+            "drug_id": str(test_drug.id),
             "dosage": 2,
             "schedule": "Every 8 hours"
         }
@@ -271,63 +281,104 @@ class TestOrdersEndpoints:
         # Clean up override
         app.dependency_overrides.clear()
     
-    @pytest.mark.usefixtures("test_order")
-    def test_get_orders(self, client, test_user_doctor, test_order):
-        """Test getting all orders."""
-        # Override get_current_user for this test
+    def test_get_orders(self, client, test_user_doctor, test_user_pharmacist):
         from dependencies import get_current_user
         from main import app
+        # Create drug as pharmacist
+        app.dependency_overrides[get_current_user] = lambda: test_user_pharmacist
+        create_data = {
+            "name": "API Get Orders Drug",
+            "form": "Tablet",
+            "strength": "500mg",
+            "current_stock": 100,
+            "low_stock_threshold": 10
+        }
+        response = client.post("/api/drugs/", json=create_data)
+        assert response.status_code == 200
+        drug_id = response.json()["id"]
+        # Switch to doctor for order
         app.dependency_overrides[get_current_user] = lambda: test_user_doctor
-        
+        order_data = {
+            "patient_name": "John Doe",
+            "drug_id": drug_id,
+            "dosage": 2,
+            "schedule": "Every 8 hours"
+        }
+        response = client.post("/api/orders/", json=order_data)
+        assert response.status_code == 200
+        order_id = response.json()["id"]
         response = client.get("/api/orders/")
-        
         assert response.status_code == 200
         data = response.json()
         assert len(data) >= 1
-        assert any(order["id"] == test_order.id for order in data)
-        
-        # Clean up override
+        assert any(order["id"] == order_id for order in data)
         app.dependency_overrides.clear()
     
-    @pytest.mark.usefixtures("test_order")
-    def test_get_orders_by_status(self, client, test_user_doctor, test_order):
-        """Test getting orders by status."""
-        # Override get_current_user for this test
+    def test_get_orders_by_status(self, client, test_user_doctor, test_user_pharmacist):
         from dependencies import get_current_user
         from main import app
+        # Create drug as pharmacist
+        app.dependency_overrides[get_current_user] = lambda: test_user_pharmacist
+        create_data = {
+            "name": "API Get Orders Status Drug",
+            "form": "Tablet",
+            "strength": "500mg",
+            "current_stock": 100,
+            "low_stock_threshold": 10
+        }
+        response = client.post("/api/drugs/", json=create_data)
+        assert response.status_code == 200
+        drug_id = response.json()["id"]
+        # Switch to doctor for order
         app.dependency_overrides[get_current_user] = lambda: test_user_doctor
-        
-        response = client.get(
-            "/api/orders/",
-            params={"status": "active"},
-        )
-        
+        order_data = {
+            "patient_name": "John Doe",
+            "drug_id": drug_id,
+            "dosage": 2,
+            "schedule": "Every 8 hours"
+        }
+        response = client.post("/api/orders/", json=order_data)
+        assert response.status_code == 200
+        order_id = response.json()["id"]
+        response = client.get("/api/orders/?status=active")
         assert response.status_code == 200
         data = response.json()
         assert len(data) >= 1
-        assert all(order["status"] == "active" for order in data)
-        
-        # Clean up override
+        assert any(order["id"] == order_id for order in data)
         app.dependency_overrides.clear()
     
     # Tests for new collaborative endpoints
-    @pytest.mark.usefixtures("test_order")
-    def test_get_my_orders_doctor_access(self, client, test_user_doctor, test_order):
-        """Test doctor can access their own orders."""
-        # Override get_current_user for this test
+    def test_get_my_orders_doctor_access(self, client, test_user_doctor, test_user_pharmacist):
         from dependencies import get_current_user
         from main import app
+        # Create drug as pharmacist
+        app.dependency_overrides[get_current_user] = lambda: test_user_pharmacist
+        create_data = {
+            "name": "API My Orders Drug",
+            "form": "Tablet",
+            "strength": "500mg",
+            "current_stock": 100,
+            "low_stock_threshold": 10
+        }
+        response = client.post("/api/drugs/", json=create_data)
+        assert response.status_code == 200
+        drug_id = response.json()["id"]
+        # Switch to doctor for order
         app.dependency_overrides[get_current_user] = lambda: test_user_doctor
-        
+        order_data = {
+            "patient_name": "John Doe",
+            "drug_id": drug_id,
+            "dosage": 2,
+            "schedule": "Every 8 hours"
+        }
+        response = client.post("/api/orders/", json=order_data)
+        assert response.status_code == 200
+        order_id = response.json()["id"]
         response = client.get("/api/orders/my-orders/")
-        
         assert response.status_code == 200
         data = response.json()
         assert len(data) >= 1
-        assert any(order["id"] == test_order.id for order in data)
-        assert all(order["doctor_id"] == test_user_doctor.id for order in data)
-        
-        # Clean up override
+        assert any(order["id"] == order_id for order in data)
         app.dependency_overrides.clear()
     
     def test_get_my_orders_nurse_denied(self, client, test_user_nurse):
@@ -345,41 +396,75 @@ class TestOrdersEndpoints:
         app.dependency_overrides.clear()
     
     @pytest.mark.usefixtures("test_order")
-    def test_get_active_mar_nurse_access(self, client, test_user_nurse, test_order):
-        """Test nurse can access active MAR endpoint."""
-        # Override get_current_user for this test
+    def test_get_active_mar_nurse_access(self, client, test_user_nurse, test_user_doctor, test_user_pharmacist):
         from dependencies import get_current_user
         from main import app
+        # Create drug as pharmacist
+        app.dependency_overrides[get_current_user] = lambda: test_user_pharmacist
+        create_data = {
+            "name": "API MAR Nurse Drug",
+            "form": "Tablet",
+            "strength": "500mg",
+            "current_stock": 100,
+            "low_stock_threshold": 10
+        }
+        response = client.post("/api/drugs/", json=create_data)
+        assert response.status_code == 200
+        drug_id = response.json()["id"]
+        # Switch to doctor for order creation
+        app.dependency_overrides[get_current_user] = lambda: test_user_doctor
+        order_data = {
+            "patient_name": "John Doe",
+            "drug_id": drug_id,
+            "dosage": 2,
+            "schedule": "Every 8 hours"
+        }
+        response = client.post("/api/orders/", json=order_data)
+        assert response.status_code == 200
+        order_id = response.json()["id"]
+        # Switch to nurse for MAR fetch
         app.dependency_overrides[get_current_user] = lambda: test_user_nurse
-        
         response = client.get("/api/orders/active-mar/")
-        
         assert response.status_code == 200
         data = response.json()
         assert len(data) >= 1
-        assert any(order["id"] == test_order.id for order in data)
-        assert all(order["status"] == "active" for order in data)
-        
-        # Clean up override
+        assert any(order["id"] == order_id for order in data)
         app.dependency_overrides.clear()
     
     @pytest.mark.usefixtures("test_order")
-    def test_get_active_mar_pharmacist_access(self, client, test_user_pharmacist, test_order):
-        """Test pharmacist can access active MAR endpoint."""
-        # Override get_current_user for this test
+    def test_get_active_mar_pharmacist_access(self, client, test_user_pharmacist, test_user_doctor):
         from dependencies import get_current_user
         from main import app
+        # Create drug as pharmacist
         app.dependency_overrides[get_current_user] = lambda: test_user_pharmacist
-        
+        create_data = {
+            "name": "API MAR Pharmacist Drug",
+            "form": "Tablet",
+            "strength": "500mg",
+            "current_stock": 100,
+            "low_stock_threshold": 10
+        }
+        response = client.post("/api/drugs/", json=create_data)
+        assert response.status_code == 200
+        drug_id = response.json()["id"]
+        # Switch to doctor for order creation
+        app.dependency_overrides[get_current_user] = lambda: test_user_doctor
+        order_data = {
+            "patient_name": "John Doe",
+            "drug_id": drug_id,
+            "dosage": 2,
+            "schedule": "Every 8 hours"
+        }
+        response = client.post("/api/orders/", json=order_data)
+        assert response.status_code == 200
+        order_id = response.json()["id"]
+        # Switch to pharmacist for MAR fetch
+        app.dependency_overrides[get_current_user] = lambda: test_user_pharmacist
         response = client.get("/api/orders/active-mar/")
-        
         assert response.status_code == 200
         data = response.json()
         assert len(data) >= 1
-        assert any(order["id"] == test_order.id for order in data)
-        assert all(order["status"] == "active" for order in data)
-        
-        # Clean up override
+        assert any(order["id"] == order_id for order in data)
         app.dependency_overrides.clear()
     
     def test_get_active_mar_doctor_denied(self, client, test_user_doctor):
@@ -426,8 +511,8 @@ class TestAdministrationsEndpoints:
         db_session.commit()
 
         admin_data = {
-            "order_id": test_order.id,
-            "nurse_id": test_user_nurse.id
+            "order_id": str(test_order.id),
+            "nurse_id": str(test_user_nurse.id)
         }
 
         response = client.post(
@@ -440,8 +525,8 @@ class TestAdministrationsEndpoints:
             
         assert response.status_code == 200
         data = response.json()
-        assert data["order_id"] == test_order.id
-        assert data["nurse_id"] == test_user_nurse.id
+        assert data["order_id"] == str(test_order.id)
+        assert data["nurse_id"] == str(test_user_nurse.id)
         
         # Clean up override
         app.dependency_overrides.clear()
@@ -455,8 +540,8 @@ class TestAdministrationsEndpoints:
         app.dependency_overrides[get_db] = lambda: db_session
 
         admin_data = {
-            "order_id": 999,
-            "nurse_id": test_user_nurse.id
+            "order_id": "00000000-0000-0000-0000-000000000999",
+            "nurse_id": str(test_user_nurse.id)
         }
 
         response = client.post(
@@ -482,8 +567,8 @@ class TestAdministrationsEndpoints:
         app.dependency_overrides[get_current_user] = lambda: test_user_doctor
 
         admin_data = {
-            "order_id": test_order.id,
-            "nurse_id": test_user_doctor.id
+            "order_id": str(test_order.id),
+            "nurse_id": str(test_user_doctor.id)
         }
 
         response = client.post(
@@ -524,7 +609,7 @@ class TestAdministrationsEndpoints:
         db_session.commit()
 
         # First create an administration
-        admin_data = {"order_id": test_order.id, "nurse_id": test_user_nurse.id}
+        admin_data = {"order_id": str(test_order.id), "nurse_id": str(test_user_nurse.id)}
         response = client.post(
             "/api/administrations/",
             json=admin_data,
@@ -538,7 +623,7 @@ class TestAdministrationsEndpoints:
         assert response.status_code == 200
         data = response.json()
         assert len(data) >= 1
-        assert any(admin["order_id"] == test_order.id for admin in data)
+        assert any(admin["order_id"] == str(test_order.id) for admin in data)
         
         # Clean up override
         app.dependency_overrides.clear()

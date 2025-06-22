@@ -3,6 +3,8 @@ from sqlalchemy.orm import relationship
 from database import Base
 import enum
 from datetime import datetime
+from sqlalchemy.dialects.postgresql import UUID
+import uuid
 
 class UserRole(enum.Enum):
     doctor = "doctor"
@@ -16,7 +18,7 @@ class OrderStatus(enum.Enum):
 
 class User(Base):
     __tablename__ = "users"
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, index=True, default=uuid.uuid4)
     email = Column(String, unique=True, nullable=False, index=True)
     hashed_password = Column(String, nullable=False)
     api_key = Column(String, unique=True, index=True, nullable=False)
@@ -29,7 +31,7 @@ class User(Base):
 class Drug(Base):
     """Drug inventory for medication logistics"""
     __tablename__ = "drugs"
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, index=True, default=uuid.uuid4)
     name = Column(String, nullable=False)
     form = Column(String, nullable=False)  # e.g., "Tablet", "Ampoule"
     strength = Column(String, nullable=False)  # e.g., "500mg"
@@ -43,13 +45,13 @@ class Drug(Base):
 class MedicationOrder(Base):
     """Medication orders (prescriptions) for the logistics system"""
     __tablename__ = "medication_orders"
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, index=True, default=uuid.uuid4)
     patient_name = Column(String, nullable=False)
-    drug_id = Column(Integer, ForeignKey("drugs.id"), nullable=False)
+    drug_id = Column(UUID(as_uuid=True), ForeignKey("drugs.id"), nullable=False, index=True)
     dosage = Column(Integer, nullable=False)  # Now integer for decrement logic
     schedule = Column(String, nullable=False)
-    status = Column(Enum(OrderStatus), nullable=False, default=OrderStatus.active)
-    doctor_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    status = Column(Enum(OrderStatus), nullable=False, default=OrderStatus.active, index=True)
+    doctor_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationships
@@ -63,9 +65,9 @@ class MedicationOrder(Base):
 class MedicationAdministration(Base):
     """Medication administration records"""
     __tablename__ = "medication_administrations"
-    id = Column(Integer, primary_key=True, index=True)
-    order_id = Column(Integer, ForeignKey("medication_orders.id"), nullable=False)
-    nurse_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    id = Column(UUID(as_uuid=True), primary_key=True, index=True, default=uuid.uuid4)
+    order_id = Column(UUID(as_uuid=True), ForeignKey("medication_orders.id"), nullable=False, index=True)
+    nurse_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
     administration_time = Column(TIMESTAMP, server_default=func.now(), nullable=False)
     
     # Relationships

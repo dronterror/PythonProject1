@@ -3,6 +3,7 @@ from sqlalchemy import event
 from sqlalchemy.orm import Session
 from models import User, UserRole, Drug, MedicationOrder, OrderStatus, MedicationAdministration
 import time
+import uuid
 
 class TestNPlusOneQueryFix:
     """Test that N+1 query issues have been resolved with eager loading."""
@@ -54,7 +55,7 @@ class TestNPlusOneQueryFix:
             
             # Import and call the function
             from crud import get_multi_by_doctor
-            result = get_multi_by_doctor(db_session, sample_doctor.id)
+            result = get_multi_by_doctor(db_session, sample_doctor.id if isinstance(sample_doctor.id, uuid.UUID) else uuid.UUID(str(sample_doctor.id)))
             
             # Verify results
             assert len(result) == 3

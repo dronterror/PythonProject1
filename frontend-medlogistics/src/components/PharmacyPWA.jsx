@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 
 // API Configuration - Updated to use the correct endpoints
 const API_BASE = '/api';
-const API_KEY = '6029420ddcf35aa43813a21874d7bbd5'; // Pharmacist API key from database
+const API_KEY = 'e6010c2e4f8dd723a0ee3f3de23a174f'; // Pharmacist API key from backend seed
 
 const PharmacyPWA = () => {
     const [loading, setLoading] = useState(true);

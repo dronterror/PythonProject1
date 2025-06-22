@@ -13,11 +13,12 @@ Author: ValMed Development Team
 Version: 1.0.0
 """
 
-from pydantic import BaseModel, EmailStr, conint
+from pydantic import BaseModel, EmailStr, conint, Field
 from typing import Optional, List
 from datetime import date, datetime
 import enum
 from models import UserRole
+import uuid
 
 # ============================================================================
 # USER MANAGEMENT SCHEMAS
@@ -42,7 +43,7 @@ class UserUpdate(BaseModel):
 
 class UserOut(UserBase):
     """Schema for user responses"""
-    id: int                # User ID
+    id: uuid.UUID          # User ID
     
     class Config:
         from_attributes = True  # Allow ORM model conversion
@@ -56,8 +57,8 @@ class DrugBase(BaseModel):
     name: str              # Drug name
     form: str              # Drug form
     strength: str          # Drug strength
-    current_stock: int     # Current stock of the drug
-    low_stock_threshold: int  # Low stock threshold for the drug
+    current_stock: int = Field(..., ge=0)     # Current stock of the drug (non-negative)
+    low_stock_threshold: int = Field(..., ge=0)  # Low stock threshold for the drug (non-negative)
 
 class DrugCreate(DrugBase):
     """Schema for creating new drugs"""
@@ -68,12 +69,12 @@ class DrugUpdate(BaseModel):
     name: Optional[str] = None
     form: Optional[str] = None
     strength: Optional[str] = None
-    current_stock: Optional[int] = None
-    low_stock_threshold: Optional[int] = None
+    current_stock: Optional[int] = Field(None, ge=0)
+    low_stock_threshold: Optional[int] = Field(None, ge=0)
 
 class DrugOut(DrugBase):
     """Schema for drug responses"""
-    id: int                # Drug ID
+    id: uuid.UUID          # Drug ID
     
     class Config:
         from_attributes = True
@@ -85,7 +86,7 @@ class DrugOut(DrugBase):
 class MedicationOrderBase(BaseModel):
     """Base medication order model"""
     patient_name: str
-    drug_id: int
+    drug_id: uuid.UUID
     dosage: conint(gt=0)
     schedule: str
 
@@ -96,15 +97,15 @@ class MedicationOrderCreate(MedicationOrderBase):
 class MedicationOrderUpdate(BaseModel):
     """Schema for updating medication orders (all fields optional)"""
     patient_name: Optional[str] = None
-    drug_id: Optional[int] = None
+    drug_id: Optional[uuid.UUID] = None
     dosage: Optional[conint(gt=0)] = None
     schedule: Optional[str] = None
 
 class MedicationOrderOut(MedicationOrderBase):
     """Schema for medication order responses"""
-    id: int
+    id: uuid.UUID
     status: str
-    doctor_id: int
+    doctor_id: uuid.UUID
     created_at: datetime
     drug: DrugOut
     administrations: List["MedicationAdministrationOut"] = []
@@ -118,16 +119,16 @@ class MedicationOrderOut(MedicationOrderBase):
 
 class MedicationAdministrationBase(BaseModel):
     """Base medication administration model"""
-    order_id: int
+    order_id: uuid.UUID
 
 class MedicationAdministrationCreate(MedicationAdministrationBase):
     """Schema for creating new medication administrations"""
-    nurse_id: Optional[int] = None
+    nurse_id: Optional[uuid.UUID] = None
 
 class MedicationAdministrationOut(MedicationAdministrationBase):
     """Schema for medication administration responses"""
-    id: int
-    nurse_id: int
+    id: uuid.UUID
+    nurse_id: uuid.UUID
     administration_time: datetime
     
     class Config:

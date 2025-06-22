@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Dict, Any
 from models import Drug, User, UserRole, MedicationOrder, OrderStatus
 from schemas import MedicationOrderOut, MedicationOrderCreate
 from dependencies import require_role, require_roles, get_db, get_current_user
-from crud import create_with_doctor, get_multi_active, get_multi_by_doctor
+from crud import create_with_doctor, get_multi_active, get_multi_by_doctor, get_mar_dashboard_data
+import uuid
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
@@ -29,7 +30,9 @@ def get_my_orders(current_user: User = Depends(get_current_user), db: Session = 
     Get all orders created by the current doctor with administration status.
     This endpoint allows doctors to see the status of their prescriptions.
     """
-    orders = get_multi_by_doctor(db, current_user.id)
+    # Ensure doctor_id is uuid.UUID
+    doctor_id = current_user.id if isinstance(current_user.id, uuid.UUID) else uuid.UUID(str(current_user.id))
+    orders = get_multi_by_doctor(db, doctor_id)
     return orders
 
 @router.get("/active-mar/", response_model=List[MedicationOrderOut], dependencies=[Depends(require_roles(["nurse", "pharmacist"]))])
@@ -40,6 +43,14 @@ def get_active_mar(db: Session = Depends(get_db)):
     """
     active_orders = get_multi_active(db)
     return active_orders
+
+@router.get("/mar-dashboard", response_model=Dict[str, Any], dependencies=[Depends(require_role("nurse"))])
+def get_mar_dashboard(db: Session = Depends(get_db)):
+    """
+    Get optimized dashboard data for nurses, grouped by patient.
+    This function is optimized to prevent N+1 queries for the nurse dashboard.
+    """
+    return get_mar_dashboard_data(db)
 
 @router.get("/", response_model=List[MedicationOrderOut], dependencies=[Depends(get_current_user)])
 def get_orders(db: Session = Depends(get_db), skip: int = 0, limit: int = Query(100, le=100)):

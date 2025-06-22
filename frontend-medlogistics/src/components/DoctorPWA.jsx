@@ -9,7 +9,7 @@ const statusPillColors = {
 
 // API Configuration - Updated to use the new collaborative endpoint
 const API_BASE = '/api';
-const API_KEY = '0f83b062004308a71056537a7929aedb'; // Doctor API key from database
+const API_KEY = 'b2b2b4925a1639b4e374e3a2fb77fbd0'; // Doctor API key from backend seed
 
 const DoctorPWA = () => {
     const [orders, setOrders] = useState([]);

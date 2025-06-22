@@ -64,7 +64,7 @@ class TestOrdersEndpoints:
         doctor_orders = [order for order in orders if order["patient_name"] == "Patient 1"]
         assert len(doctor_orders) == 1
         assert doctor_orders[0]["patient_name"] == "Patient 1"
-        assert doctor_orders[0]["doctor_id"] == sample_doctor.id
+        assert doctor_orders[0]["doctor_id"] == str(sample_doctor.id)
         
         # Clean up override
         app.dependency_overrides.clear()

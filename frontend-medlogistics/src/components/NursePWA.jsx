@@ -3,7 +3,7 @@ import Modal from './Modal.jsx';
 
 // API Configuration - Updated to use the new collaborative endpoint
 const API_BASE = '/api';
-const API_KEY = '6bba2821d10a9359d21c3b88568aae16'; // Nurse API key from database
+const API_KEY = '63491d084b702da23af08feb529fa43e'; // Nurse API key from backend seed
 
 const NursePWA = () => {
     const [orders, setOrders] = useState([]);

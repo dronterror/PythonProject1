@@ -3,6 +3,7 @@ from sqlalchemy.exc import IntegrityError
 from models import User, UserRole, Drug, MedicationOrder, OrderStatus, MedicationAdministration
 from datetime import datetime
 from crud import get_multi_by_doctor
+import uuid
 
 class TestUserModel:
     def test_create_user(self, db_session):
@@ -155,11 +156,11 @@ class TestMedicationOrderModel:
         
         assert order.id is not None
         assert order.patient_name == "John Doe"
-        assert order.drug_id == test_drug.id
+        assert str(order.drug_id) == str(test_drug.id)
         assert order.dosage == 2
         assert order.schedule == "Every 8 hours"
         assert order.status == OrderStatus.active
-        assert order.doctor_id == test_user_doctor.id
+        assert str(order.doctor_id) == str(test_user_doctor.id)
     
     def test_order_relationships(self, db_session, test_user_doctor, test_drug):
         """Test order relationships with drug and doctor."""
@@ -261,19 +262,20 @@ class TestCRUDFunctions:
         db_session.commit()
         
         # Create administrations for the orders
+        fake_nurse_id = uuid.uuid4()
         admin1 = MedicationAdministration(
             order_id=order1.id,
-            nurse_id=1  # Mock nurse ID
+            nurse_id=fake_nurse_id
         )
         admin2 = MedicationAdministration(
             order_id=order2.id,
-            nurse_id=1  # Mock nurse ID
+            nurse_id=fake_nurse_id
         )
         db_session.add_all([admin1, admin2])
         db_session.commit()
         
         # Test the function
-        orders = get_multi_by_doctor(db_session, test_user_doctor.id)
+        orders = get_multi_by_doctor(db_session, test_user_doctor.id if isinstance(test_user_doctor.id, uuid.UUID) else uuid.UUID(str(test_user_doctor.id)))
         
         assert len(orders) == 2
         assert orders[0].patient_name == "John Doe"
@@ -282,12 +284,12 @@ class TestCRUDFunctions:
         # Check that administrations are loaded
         assert len(orders[0].administrations) == 1
         assert len(orders[1].administrations) == 1
-        assert orders[0].administrations[0].order_id == order1.id
-        assert orders[1].administrations[0].order_id == order2.id
+        assert str(orders[0].administrations[0].order_id) == str(order1.id)
+        assert str(orders[1].administrations[0].order_id) == str(order2.id)
     
     def test_get_multi_by_doctor_no_orders(self, db_session, test_user_doctor):
         """Test get_multi_by_doctor returns empty list when doctor has no orders."""
-        orders = get_multi_by_doctor(db_session, test_user_doctor.id)
+        orders = get_multi_by_doctor(db_session, test_user_doctor.id if isinstance(test_user_doctor.id, uuid.UUID) else uuid.UUID(str(test_user_doctor.id)))
         assert len(orders) == 0
     
     def test_get_multi_by_doctor_other_doctor_orders(self, db_session, test_user_doctor, test_drug):
@@ -325,7 +327,7 @@ class TestCRUDFunctions:
         db_session.commit()
         
         # Test that only the first doctor's orders are returned
-        orders = get_multi_by_doctor(db_session, test_user_doctor.id)
+        orders = get_multi_by_doctor(db_session, test_user_doctor.id if isinstance(test_user_doctor.id, uuid.UUID) else uuid.UUID(str(test_user_doctor.id)))
         assert len(orders) == 1
         assert orders[0].patient_name == "John Doe"
-        assert orders[0].doctor_id == test_user_doctor.id 
+        assert str(orders[0].doctor_id) == str(test_user_doctor.id) 

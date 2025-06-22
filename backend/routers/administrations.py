@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from typing import List
 from models import MedicationOrder, User, UserRole, MedicationAdministration, Drug
 from schemas import MedicationAdministrationOut, MedicationAdministrationCreate
 from dependencies import require_role, get_db, get_current_user
-from crud import create_administration_and_decrement_stock
+from crud import create_administration_and_decrement_stock, bulk_create_administrations
 from models import OrderStatus
+import uuid
 
 router = APIRouter(prefix="/administrations", tags=["administrations"])
 
@@ -58,6 +60,31 @@ def create_administration(
             raise e
         # Handle any other unexpected errors
         raise HTTPException(status_code=500, detail="Internal server error during administration")
+
+@router.post("/bulk", response_model=List[MedicationAdministrationOut], dependencies=[Depends(require_role("nurse"))])
+def create_bulk_administrations(
+    order_ids: List[uuid.UUID],
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Bulk administration endpoint for efficient nurse workflow.
+    Processes multiple administrations in a single transaction.
+    """
+    try:
+        administrations = bulk_create_administrations(db, order_ids, current_user.id)
+        return administrations
+    except ValueError as e:
+        if "Insufficient stock" in str(e):
+            raise HTTPException(status_code=400, detail="Insufficient stock for one or more orders")
+        elif "Order not found" in str(e):
+            raise HTTPException(status_code=404, detail="One or more orders not found")
+        elif "Order not active" in str(e):
+            raise HTTPException(status_code=400, detail="One or more orders are not active")
+        else:
+            raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Internal server error during bulk administration")
 
 @router.get("/", response_model=list[MedicationAdministrationOut], dependencies=[Depends(require_role("nurse"))])
 def get_administrations(db: Session = Depends(get_db)):
