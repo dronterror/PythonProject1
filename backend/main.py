@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 from database import engine, Base
-from routers import drugs, orders, administrations
+from routers import drugs, orders, administrations, admin
 
 logging.basicConfig(level=logging.INFO)
 
@@ -10,15 +10,20 @@ logging.basicConfig(level=logging.INFO)
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
-    title="Medication Logistics MVP Backend",
-    description="MVP backend for medication logistics platform",
-    version="1.0.0"
+    title="Medication Logistics Platform with Auth0",
+    description="Professional medication logistics platform with Auth0 authentication and admin capabilities",
+    version="2.0.0"
 )
 
-# CORS: Restrict in production!
+# CORS: Configure for multiple frontends
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # TODO: Restrict in production
+    allow_origins=[
+        "http://localhost:3000",  # Admin frontend
+        "http://localhost:5173",  # Original frontend  
+        "http://localhost:4173",  # Production frontend
+        # Add your production domains here
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -28,6 +33,7 @@ app.add_middleware(
 app.include_router(drugs.router, prefix="/api")
 app.include_router(orders.router, prefix="/api")
 app.include_router(administrations.router, prefix="/api")
+app.include_router(admin.router, prefix="/api")  # Admin endpoints
 
 @app.get("/")
 async def root():

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 
-// API Configuration - Updated to use the correct endpoints
+// API Configuration - Updated to use JWT authentication
 const API_BASE = '/api';
-const API_KEY = 'e6010c2e4f8dd723a0ee3f3de23a174f'; // Pharmacist API key from backend seed
+const PHARMACIST_JWT_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhdXRoMHwwN2Y0NWQ5MTgxYzY0NmVjYTI2Zjc1NTkiLCJlbWFpbCI6InBoYXJtYWNpc3QxQHZhbG1lZC5jb20iLCJyb2xlIjoicGhhcm1hY2lzdCIsImlhdCI6MTc1MDc5NDY1NCwiaXNzIjoiaHR0cHM6Ly9kZXYtbWVkbG9nLXRlc3QudXMuYXV0aDAuY29tLyIsImF1ZCI6Imh0dHBzOi8vYXBpLm1lZGxvZy5hcHAiLCJleHAiOjE3NTA3OTY0NTR9.vizVMwshV1iM9OZzwu4ZBJFR5AQjoaGqNWCkQU79Spw';
 
 const PharmacyPWA = () => {
     const [loading, setLoading] = useState(true);
@@ -33,7 +33,7 @@ const PharmacyPWA = () => {
             // Fetch drugs inventory
             const drugsRes = await fetch(`${API_BASE}/drugs/`, {
                 headers: {
-                    'X-API-Key': API_KEY
+                    'Authorization': `Bearer ${PHARMACIST_JWT_TOKEN}`
                 }
             });
             if (!drugsRes.ok) throw new Error('Failed to fetch drugs');
@@ -42,7 +42,7 @@ const PharmacyPWA = () => {
             // Fetch active orders for MAR calculation
             const ordersRes = await fetch(`${API_BASE}/orders/active-mar/`, {
                 headers: {
-                    'X-API-Key': API_KEY
+                    'Authorization': `Bearer ${PHARMACIST_JWT_TOKEN}`
                 }
             });
             let ordersData = [];
@@ -95,7 +95,7 @@ const PharmacyPWA = () => {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-API-Key': API_KEY
+                    'Authorization': `Bearer ${PHARMACIST_JWT_TOKEN}`
                 },
                 body: JSON.stringify({
                     current_stock: newQuantity

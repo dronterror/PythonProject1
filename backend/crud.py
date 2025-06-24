@@ -30,17 +30,62 @@ def get_users(db: Session, skip: int = 0, limit: int = 100):
     return db.query(models.User).offset(skip).limit(limit).all()
 
 def create_user(db: Session, user: schemas.UserCreate):
-    hashed_password = get_password_hash(user.hashed_password)
     db_user = models.User(
         email=user.email,
-        hashed_password=hashed_password,
-        api_key=user.api_key,
-        role=user.role
+        auth0_user_id=user.auth0_user_id,
+        role=user.role,
+        hashed_password=None  # Auth0 handles authentication
     )
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
     return db_user
+
+def get_user_by_auth0_id(db: Session, auth0_user_id: str):
+    return db.query(models.User).filter(models.User.auth0_user_id == auth0_user_id).first()
+
+# Hospital CRUD
+
+def create_hospital(db: Session, hospital: schemas.HospitalCreate):
+    db_hospital = models.Hospital(**hospital.dict())
+    db.add(db_hospital)
+    db.commit()
+    db.refresh(db_hospital)
+    return db_hospital
+
+def get_hospitals(db: Session, skip: int = 0, limit: int = 100):
+    return db.query(models.Hospital).offset(skip).limit(limit).all()
+
+def get_hospital(db: Session, hospital_id: uuid.UUID):
+    return db.query(models.Hospital).filter(models.Hospital.id == hospital_id).first()
+
+# Ward CRUD
+
+def create_ward(db: Session, ward: schemas.WardCreate):
+    db_ward = models.Ward(**ward.dict())
+    db.add(db_ward)
+    db.commit()
+    db.refresh(db_ward)
+    return db_ward
+
+def get_wards_by_hospital(db: Session, hospital_id: uuid.UUID):
+    return db.query(models.Ward).filter(models.Ward.hospital_id == hospital_id).all()
+
+def get_ward(db: Session, ward_id: uuid.UUID):
+    return db.query(models.Ward).filter(models.Ward.id == ward_id).first()
+
+# User Ward Permission CRUD
+
+def create_user_ward_permission(db: Session, user_id: uuid.UUID, ward_id: uuid.UUID, role: models.UserRole):
+    db_permission = models.UserWardPermission(
+        user_id=user_id,
+        ward_id=ward_id,
+        role=role
+    )
+    db.add(db_permission)
+    db.commit()
+    db.refresh(db_permission)
+    return db_permission
 
 # Drug CRUD
 

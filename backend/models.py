@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, Date, ForeignKey, Float, Enum, DateTime, Text, TIMESTAMP, func, UniqueConstraint
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, Mapped, mapped_column
 from database import Base
 import enum
 from datetime import datetime
@@ -10,20 +10,65 @@ class UserRole(enum.Enum):
     doctor = "doctor"
     nurse = "nurse"
     pharmacist = "pharmacist"
+    super_admin = "super_admin"
 
 class OrderStatus(enum.Enum):
     active = "active"
     completed = "completed"
     discontinued = "discontinued"
 
+class Hospital(Base):
+    __tablename__ = "hospitals"
+    id = Column(UUID(as_uuid=True), primary_key=True, index=True, default=uuid.uuid4)
+    name = Column(String, unique=True, nullable=False, index=True)
+    address = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    wards = relationship("Ward", back_populates="hospital", cascade="all, delete-orphan")
+    
+    def __repr__(self):
+        return f"<Hospital(id={self.id}, name={self.name})>"
+
+class Ward(Base):
+    __tablename__ = "wards"
+    id = Column(UUID(as_uuid=True), primary_key=True, index=True, default=uuid.uuid4)
+    name = Column(String, nullable=False, index=True)
+    hospital_id = Column(UUID(as_uuid=True), ForeignKey("hospitals.id"), nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    __table_args__ = (UniqueConstraint('name', 'hospital_id'),)
+    
+    # Relationships
+    hospital = relationship("Hospital", back_populates="wards")
+    user_permissions = relationship("UserWardPermission", back_populates="ward", cascade="all, delete-orphan")
+    
+    def __repr__(self):
+        return f"<Ward(id={self.id}, name={self.name}, hospital_id={self.hospital_id})>"
+
+class UserWardPermission(Base):
+    __tablename__ = "user_ward_permissions"
+    id = Column(UUID(as_uuid=True), primary_key=True, index=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    ward_id = Column(UUID(as_uuid=True), ForeignKey("wards.id"), nullable=False, index=True)
+    role = Column(Enum(UserRole), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    __table_args__ = (UniqueConstraint('user_id', 'ward_id'),)
+    
+    # Relationships
+    user = relationship("User", backref="ward_permissions")
+    ward = relationship("Ward", back_populates="user_permissions")
+    
+    def __repr__(self):
+        return f"<UserWardPermission(user_id={self.user_id}, ward_id={self.ward_id}, role={self.role})>"
+
 class User(Base):
     __tablename__ = "users"
     id = Column(UUID(as_uuid=True), primary_key=True, index=True, default=uuid.uuid4)
     email = Column(String, unique=True, nullable=False, index=True)
-    hashed_password = Column(String, nullable=False)
-    api_key = Column(String, unique=True, index=True, nullable=False)
+    hashed_password = Column(String, nullable=True)  # Made nullable since Auth0 handles auth
+    auth0_user_id = Column(String, unique=True, index=True, nullable=True)
     role = Column(Enum(UserRole), nullable=False)
-    __table_args__ = (UniqueConstraint('email'), UniqueConstraint('api_key'),)
+    __table_args__ = (UniqueConstraint('email'), UniqueConstraint('auth0_user_id'),)
     
     def __repr__(self):
         return f"<User(id={self.id}, email={self.email}, role={self.role})>"

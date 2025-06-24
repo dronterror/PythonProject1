@@ -7,9 +7,9 @@ const statusPillColors = {
   success: 'bg-green-100 text-green-700',
 };
 
-// API Configuration - Updated to use the new collaborative endpoint
+// API Configuration - Updated to use JWT authentication
 const API_BASE = '/api';
-const API_KEY = 'b2b2b4925a1639b4e374e3a2fb77fbd0'; // Doctor API key from backend seed
+const DOCTOR_JWT_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhdXRoMHw4MmYzYzI4NDdjNmM0ZDdiOWY3OGNjY2UiLCJlbWFpbCI6ImRvY3RvcjFAdmFsbWVkLmNvbSIsInJvbGUiOiJkb2N0b3IiLCJpYXQiOjE3NTA3OTQ2NTQsImlzcyI6Imh0dHBzOi8vZGV2LW1lZGxvZy10ZXN0LnVzLmF1dGgwLmNvbS8iLCJhdWQiOiJodHRwczovL2FwaS5tZWRsb2cuYXBwIiwiZXhwIjoxNzUwNzk2NDU0fQ.6HZYqn6PBv4VowTa17kpsl71GptZqDzH5pN4m-exaFY';
 
 const DoctorPWA = () => {
     const [orders, setOrders] = useState([]);
@@ -35,7 +35,7 @@ const DoctorPWA = () => {
                 // Fetch doctor's own orders using the new collaborative endpoint
                 const ordersRes = await fetch(`${API_BASE}/orders/my-orders/`, {
                     headers: {
-                        'X-API-Key': API_KEY
+                        'Authorization': `Bearer ${DOCTOR_JWT_TOKEN}`
                     }
                 });
                 if (!ordersRes.ok) throw new Error('Failed to fetch orders');
@@ -45,7 +45,7 @@ const DoctorPWA = () => {
                 // Fetch drugs
                 const drugsRes = await fetch(`${API_BASE}/drugs/`, {
                     headers: {
-                        'X-API-Key': API_KEY
+                        'Authorization': `Bearer ${DOCTOR_JWT_TOKEN}`
                     }
                 });
                 if (!drugsRes.ok) throw new Error('Failed to fetch drugs');
@@ -67,7 +67,7 @@ const DoctorPWA = () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-API-Key': API_KEY
+                    'Authorization': `Bearer ${DOCTOR_JWT_TOKEN}`
                 },
                 body: JSON.stringify(newOrder)
             });

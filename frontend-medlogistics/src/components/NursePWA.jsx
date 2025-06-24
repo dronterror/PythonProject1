@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import Modal from './Modal.jsx';
 
-// API Configuration - Updated to use the new collaborative endpoint
+// API Configuration - Updated to use JWT authentication
 const API_BASE = '/api';
-const API_KEY = '63491d084b702da23af08feb529fa43e'; // Nurse API key from backend seed
+const NURSE_JWT_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhdXRoMHxlNTNhOTk0ZDNiMzg0ZTQ2ODUzOGNjZjUiLCJlbWFpbCI6Im51cnNlMkB2YWxtZWQuY29tIiwicm9sZSI6Im51cnNlIiwiaWF0IjoxNzUwNzk0NjU0LCJpc3MiOiJodHRwczovL2Rldi1tZWRsb2ctdGVzdC51cy5hdXRoMC5jb20vIiwiYXVkIjoiaHR0cHM6Ly9hcGkubWVkbG9nLmFwcCIsImV4cCI6MTc1MDc5NjQ1NH0.ChnHkvBVzPHabiROfLsh-0jx3Ux2-6meEwbxwCnmFJw';
 
 const NursePWA = () => {
     const [orders, setOrders] = useState([]);
@@ -21,7 +21,7 @@ const NursePWA = () => {
                 // Fetch active orders for MAR using the new collaborative endpoint
                 const res = await fetch(`${API_BASE}/orders/active-mar/`, {
                     headers: {
-                        'X-API-Key': API_KEY
+                        'Authorization': `Bearer ${NURSE_JWT_TOKEN}`
                     }
                 });
                 if (!res.ok) throw new Error('Failed to fetch orders');
@@ -72,7 +72,7 @@ const NursePWA = () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-API-Key': API_KEY
+                    'Authorization': `Bearer ${NURSE_JWT_TOKEN}`
                 },
                 body: JSON.stringify({
                     order_id: selectedOrder.id

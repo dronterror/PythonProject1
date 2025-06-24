@@ -1,0 +1,120 @@
+# ================================================================
+# MEDLOGISTICS PRODUCTION ENVIRONMENT CONFIGURATION
+# ================================================================
+# Copy this content to .env.production and update with your values
+
+# ================================================================
+# APPLICATION CONFIGURATION
+# ================================================================
+APP_ENV=production
+APP_NAME=MedLogistics
+APP_VERSION=2.0.0
+DEBUG=false
+
+# ================================================================
+# DATABASE CONFIGURATION (PostgreSQL)
+# ================================================================
+POSTGRES_HOST=db-prod.medlog.app
+POSTGRES_PORT=5432
+POSTGRES_DB=medlogistics_prod
+POSTGRES_USER=medlog_user
+POSTGRES_PASSWORD=your-secure-database-password
+
+# Database URL for SQLAlchemy
+DATABASE_URL=postgresql://medlog_user:your-secure-database-password@db-prod.medlog.app:5432/medlogistics_prod
+
+# ================================================================
+# AUTH0 CONFIGURATION (Production Tenant)
+# ================================================================
+# Get these values from your Auth0 production tenant dashboard
+
+# Auth0 Domain (from tenant settings)
+AUTH0_DOMAIN=medlog-prod.auth0.com
+
+# API Audience (from API configuration)
+AUTH0_API_AUDIENCE=https://api.medlog.app
+
+# Management API Credentials (from M2M application)
+AUTH0_MANAGEMENT_CLIENT_ID=your-management-client-id
+AUTH0_MANAGEMENT_CLIENT_SECRET=your-management-client-secret
+
+# JWT Configuration
+JWT_ALGORITHM=RS256
+JWT_AUDIENCE=https://api.medlog.app
+JWT_ISSUER=https://medlog-prod.auth0.com/
+
+# ================================================================
+# FRONTEND CONFIGURATION (React Admin App)
+# ================================================================
+# These variables are used by the frontend-admin application
+
+# Auth0 Configuration for Frontend
+VITE_AUTH0_DOMAIN=medlog-prod.auth0.com
+VITE_AUTH0_CLIENT_ID=your-spa-client-id
+VITE_AUTH0_API_AUDIENCE=https://api.medlog.app
+
+# API Configuration
+VITE_API_BASE_URL=https://api.medlog.app
+
+# Application URLs
+VITE_APP_URL=https://admin.medlog.app
+VITE_APP_NAME=MedLogistics Admin
+
+# ================================================================
+# SERVER CONFIGURATION
+# ================================================================
+# FastAPI/Uvicorn Configuration
+HOST=0.0.0.0
+PORT=8000
+WORKERS=4
+LOG_LEVEL=info
+
+# CORS Configuration
+ALLOWED_ORIGINS=https://admin.medlog.app,https://app.medlog.app,https://medlog.app
+ALLOWED_METHODS=GET,POST,PUT,DELETE,OPTIONS
+ALLOWED_HEADERS=*
+
+# ================================================================
+# SECURITY CONFIGURATION
+# ================================================================
+# Secret key for session management (generate a secure random string)
+SECRET_KEY=your-super-secure-secret-key-here
+
+# Password hashing configuration
+BCRYPT_ROUNDS=12
+
+# Rate limiting
+RATE_LIMIT_ENABLED=true
+RATE_LIMIT_REQUESTS_PER_MINUTE=60
+
+# ================================================================
+# LOGGING AND MONITORING
+# ================================================================
+# Logging Configuration
+LOG_FORMAT=json
+LOG_LEVEL=info
+LOG_FILE=/var/log/medlogistics/app.log
+
+# Enable/Disable specific loggers
+LOG_SQL_QUERIES=false
+LOG_AUTH_EVENTS=true
+LOG_API_REQUESTS=true
+
+# ================================================================
+# FEATURE FLAGS
+# ================================================================
+# Feature toggles for production deployment
+FEATURE_USER_REGISTRATION=false  # Disabled - invitation only
+FEATURE_PASSWORD_RESET=true
+FEATURE_AUDIT_LOGGING=true
+FEATURE_RATE_LIMITING=true
+FEATURE_MAINTENANCE_MODE=false
+
+# ================================================================
+# DEPLOYMENT METADATA
+# ================================================================
+# Deployment tracking
+DEPLOYMENT_VERSION=2.0.0
+DEPLOYMENT_DATE=2024-01-XX
+DEPLOYMENT_ENVIRONMENT=production
+GIT_COMMIT_SHA=your-git-commit-sha 

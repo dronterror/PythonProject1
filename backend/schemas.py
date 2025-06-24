@@ -30,23 +30,86 @@ class UserBase(BaseModel):
     role: UserRole         # User's role in the system
 
 class UserCreate(UserBase):
-    """Schema for creating new users"""
-    hashed_password: str          # Plain text password (will be hashed)
-    api_key: str           # API key for authentication
+    """Schema for creating new users with Auth0"""
+    auth0_user_id: str     # Auth0 user ID from token sub claim
 
 class UserUpdate(BaseModel):
     """Schema for updating users (all fields optional)"""
     email: Optional[EmailStr] = None
-    password: Optional[str] = None
     role: Optional[UserRole] = None
-    api_key: Optional[str] = None
+    auth0_user_id: Optional[str] = None
 
 class UserOut(UserBase):
     """Schema for user responses"""
     id: uuid.UUID          # User ID
+    auth0_user_id: str     # Auth0 user ID
+    created_at: datetime   # User creation timestamp
     
     class Config:
         from_attributes = True  # Allow ORM model conversion
+
+# ============================================================================
+# HOSPITAL & WARD MANAGEMENT SCHEMAS
+# ============================================================================
+
+class HospitalBase(BaseModel):
+    """Base hospital model with common fields"""
+    name: str = Field(..., min_length=1, max_length=200)
+    address: Optional[str] = None
+
+class HospitalCreate(HospitalBase):
+    """Schema for creating new hospitals"""
+    pass
+
+class HospitalUpdate(BaseModel):
+    """Schema for updating hospitals (all fields optional)"""
+    name: Optional[str] = Field(None, min_length=1, max_length=200)
+    address: Optional[str] = None
+
+class HospitalOut(HospitalBase):
+    """Schema for hospital responses"""
+    id: uuid.UUID
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+class WardBase(BaseModel):
+    """Base ward model with common fields"""
+    name: str = Field(..., min_length=1, max_length=100)
+    hospital_id: uuid.UUID
+
+class WardCreate(WardBase):
+    """Schema for creating new wards"""
+    pass
+
+class WardUpdate(BaseModel):
+    """Schema for updating wards (all fields optional)"""
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    hospital_id: Optional[uuid.UUID] = None
+
+class WardOut(WardBase):
+    """Schema for ward responses"""
+    id: uuid.UUID
+    created_at: datetime
+    hospital: HospitalOut
+    
+    class Config:
+        from_attributes = True
+
+class UserInvite(BaseModel):
+    """Schema for inviting new users"""
+    email: EmailStr
+    role: UserRole
+    hospital_id: uuid.UUID
+    ward_id: uuid.UUID
+    send_email: bool = True
+
+class UserInviteResponse(BaseModel):
+    """Schema for user invite response"""
+    message: str
+    user_id: uuid.UUID
+    auth0_user_id: str
 
 # ============================================================================
 # DRUG MANAGEMENT SCHEMAS

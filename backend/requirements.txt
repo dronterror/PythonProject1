@@ -12,4 +12,7 @@ pytest-env
 httpx
 factory-boy
 faker
-requests 
+requests
+PyJWT[crypto]
+python-jose[cryptography]
+alembic 
