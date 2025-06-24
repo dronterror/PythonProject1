@@ -1,6 +1,17 @@
-import React from 'react';
+// Role interface for the roles array
+interface Role {
+  id: string;
+  title: string;
+  icon: string;
+  description: string;
+  gradient: string;
+}
 
-const roles = [
+interface RoleSelectorProps {
+  onRoleSelect: (roleId: string) => void;
+}
+
+const roles: Role[] = [
   {
     id: 'nurse',
     title: 'Nurse',
@@ -16,15 +27,22 @@ const roles = [
     gradient: 'from-green-400 to-green-700',
   },
   {
-    id: 'pharmacy',
+    id: 'pharmacist',
     title: 'Pharmacist',
     icon: '💊',
     description: 'Inventory management and stock alerts',
     gradient: 'from-blue-500 to-blue-900',
   },
+  {
+    id: 'super_admin',
+    title: 'Super Admin',
+    icon: '⚙️',
+    description: 'System administration and user management',
+    gradient: 'from-red-500 to-red-700',
+  },
 ];
 
-const RoleSelector = ({ onRoleSelect }) => {
+const RoleSelector = ({ onRoleSelect }: RoleSelectorProps) => {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-indigo-400 to-purple-600 px-4 text-center">
       <div className="mb-12">

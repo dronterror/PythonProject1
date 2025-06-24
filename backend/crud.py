@@ -87,6 +87,35 @@ def create_user_ward_permission(db: Session, user_id: uuid.UUID, ward_id: uuid.U
     db.refresh(db_permission)
     return db_permission
 
+def get_user_ward_permissions(db: Session, user_id: uuid.UUID):
+    return db.query(models.UserWardPermission).options(
+        selectinload(models.UserWardPermission.ward).selectinload(models.Ward.hospital)
+    ).filter(models.UserWardPermission.user_id == user_id).all()
+
+def get_user_ward_permission(db: Session, user_id: uuid.UUID, ward_id: uuid.UUID, role: models.UserRole):
+    return db.query(models.UserWardPermission).filter(
+        and_(
+            models.UserWardPermission.user_id == user_id,
+            models.UserWardPermission.ward_id == ward_id,
+            models.UserWardPermission.role == role
+        )
+    ).first()
+
+def delete_user_ward_permission(db: Session, permission_id: uuid.UUID):
+    db_permission = db.query(models.UserWardPermission).filter(
+        models.UserWardPermission.id == permission_id
+    ).first()
+    if db_permission:
+        db.delete(db_permission)
+        db.commit()
+        return True
+    return False
+
+def get_all_wards(db: Session):
+    return db.query(models.Ward).options(
+        selectinload(models.Ward.hospital)
+    ).all()
+
 # Drug CRUD
 
 def get_drug(db: Session, drug_id: uuid.UUID):

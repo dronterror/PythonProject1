@@ -1,13 +1,20 @@
-# ValMed - Medication Logistics MVP
+# ValMed - Multi-Role Medication Logistics Platform
 
-A simplified medication logistics platform with one frontend (React PWA) and one backend (FastAPI).
+A comprehensive medication logistics platform with unified frontend supporting multiple roles and a robust backend with Auth0 authentication.
 
 ## Architecture
 
-- **Frontend**: React PWA with Vite, Tailwind CSS, and Workbox
-- **Backend**: FastAPI with SQLite, API key authentication, and RBAC
+- **Frontend**: Unified React PWA with TypeScript, MUI, role-based routing and interfaces
+- **Backend**: FastAPI with PostgreSQL, Auth0 authentication, and comprehensive RBAC
 - **Reverse Proxy**: Traefik for routing and load balancing
 - **Containerization**: Docker Compose for easy deployment
+
+## Roles & Interfaces
+
+- **Super Admin**: Hospital & user management, permissions, system oversight
+- **Doctor**: Mobile-first PWA for prescription management and order tracking
+- **Pharmacist**: Mobile-first PWA for inventory management and alerts
+- **Nurse**: Mobile-first PWA for medication administration and patient care
 
 ## Quick Start
 
@@ -24,7 +31,7 @@ A simplified medication logistics platform with one frontend (React PWA) and one
 
 3. **Add hosts entries** (Windows: edit `C:\Windows\System32\drivers\etc\hosts`):
    ```
-   127.0.0.1 localhost
+   127.0.0.1 medlog.local api.medlog.local
    ```
 
 4. **Build and run**:
@@ -33,9 +40,16 @@ A simplified medication logistics platform with one frontend (React PWA) and one
    ```
 
 5. **Access the application**:
-   - Frontend: http://localhost
-   - Backend API: http://api.localhost
+   - Frontend: http://medlog.local (unified interface for all roles)
+   - Backend API: http://api.medlog.local
    - Traefik Dashboard: http://localhost:8080
+
+## User Flow
+
+1. **Login**: Auth0 authentication for all users
+2. **Role Selection**: Choose your role (Admin, Doctor, Pharmacist, Nurse)
+3. **Ward Selection**: For role-specific users, select your ward context
+4. **Role Interface**: Access the appropriate interface based on your role
 
 ## API Authentication
 

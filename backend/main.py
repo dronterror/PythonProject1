@@ -15,13 +15,15 @@ app = FastAPI(
     version="2.0.0"
 )
 
-# CORS: Configure for multiple frontends
+# CORS: Configure for unified frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:3000",  # Admin frontend
-        "http://localhost:5173",  # Original frontend  
-        "http://localhost:4173",  # Production frontend
+        "http://localhost:3000",  # Frontend dev
+        "http://localhost:5173",  # Frontend dev (vite default)
+        "http://localhost:4173",  # Frontend production preview
+        "https://medlog.local",   # Production frontend
+        "http://medlog.local",    # Local frontend
         # Add your production domains here
     ],
     allow_credentials=True,

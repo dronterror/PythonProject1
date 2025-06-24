@@ -7,6 +7,9 @@ interface AppState {
   userProfile: UserProfile | null;
   isAuthenticated: boolean;
   
+  // Role selection state
+  selectedRole: string | null;
+  
   // Ward context state
   activeWardId: string | null;
   activeWardName: string | null;
@@ -20,6 +23,7 @@ interface AppState {
   
   // Actions
   setSession: (userProfile: UserProfile) => void;
+  setSelectedRole: (role: string) => void;
   setActiveWard: (wardId: string, wardName: string) => void;
   clearSession: () => void;
   setLoading: (loading: boolean) => void;
@@ -28,7 +32,10 @@ interface AppState {
   
   // Computed getters
   hasActiveWard: () => boolean;
+  hasSelectedRole: () => boolean;
   isNurse: () => boolean;
+  isSuperAdmin: () => boolean;
+  roleNeedsWard: () => boolean;
 }
 
 export const useAppStore = create<AppState>()(
@@ -38,6 +45,7 @@ export const useAppStore = create<AppState>()(
         // Initial state
         userProfile: null,
         isAuthenticated: false,
+        selectedRole: null,
         activeWardId: null,
         activeWardName: null,
         isLoading: false,
@@ -54,6 +62,17 @@ export const useAppStore = create<AppState>()(
             },
             false,
             'setSession'
+          );
+        },
+        
+        setSelectedRole: (role: string) => {
+          set(
+            {
+              selectedRole: role,
+              error: null,
+            },
+            false,
+            'setSelectedRole'
           );
         },
         
@@ -74,6 +93,7 @@ export const useAppStore = create<AppState>()(
             {
               userProfile: null,
               isAuthenticated: false,
+              selectedRole: null,
               activeWardId: null,
               activeWardName: null,
               currentPage: 'dashboard',
@@ -102,9 +122,24 @@ export const useAppStore = create<AppState>()(
           return state.activeWardId !== null;
         },
         
+        hasSelectedRole: () => {
+          const state = get();
+          return state.selectedRole !== null;
+        },
+        
         isNurse: () => {
           const state = get();
-          return state.userProfile?.role === 'nurse';
+          return state.selectedRole === 'nurse';
+        },
+        
+        isSuperAdmin: () => {
+          const state = get();
+          return state.selectedRole === 'super_admin';
+        },
+        
+        roleNeedsWard: () => {
+          const state = get();
+          return Boolean(state.selectedRole && ['nurse', 'doctor', 'pharmacist'].includes(state.selectedRole));
         },
       }),
       {
@@ -112,6 +147,7 @@ export const useAppStore = create<AppState>()(
         partialize: (state) => ({
           userProfile: state.userProfile,
           isAuthenticated: state.isAuthenticated,
+          selectedRole: state.selectedRole,
           activeWardId: state.activeWardId,
           activeWardName: state.activeWardName,
         }),
@@ -129,6 +165,7 @@ export const useActiveWard = () => useAppStore((state) => ({
   wardId: state.activeWardId,
   wardName: state.activeWardName,
 }));
+export const useSelectedRole = () => useAppStore((state) => state.selectedRole);
 export const useAuthState = () => useAppStore((state) => ({
   isAuthenticated: state.isAuthenticated,
   isLoading: state.isLoading,

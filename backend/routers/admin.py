@@ -6,7 +6,7 @@ from typing import List
 import logging
 import uuid
 
-from dependencies import get_db, require_roles
+from dependencies import get_db, require_roles, require_role
 import crud
 import schemas
 import models
@@ -233,4 +233,101 @@ def invite_user(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to invite user"
-        ) 
+        )
+
+# User Permission Management Endpoints
+
+@router.get("/users/{user_id}/permissions", response_model=List[schemas.UserWardPermissionOut])
+def get_user_permissions(
+    user_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_role("super_admin"))
+):
+    """Get all ward permissions for a specific user (Super Admin only)"""
+    # Verify user exists
+    user = crud.get_user(db=db, user_id=user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return crud.get_user_ward_permissions(db=db, user_id=user_id)
+
+@router.post("/users/{user_id}/permissions", response_model=schemas.UserWardPermissionOut)
+def create_user_permission(
+    user_id: uuid.UUID,
+    permission: schemas.UserWardPermissionCreate,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_role("super_admin"))
+):
+    """Create a new ward permission for a user (Super Admin only)"""
+    # Verify user exists
+    user = crud.get_user(db=db, user_id=user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Verify ward exists
+    ward = crud.get_ward(db=db, ward_id=permission.ward_id)
+    if not ward:
+        raise HTTPException(status_code=404, detail="Ward not found")
+    
+    # Check if permission already exists
+    existing_permission = crud.get_user_ward_permission(
+        db=db, user_id=user_id, ward_id=permission.ward_id, role=permission.role
+    )
+    if existing_permission:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User already has this permission for this ward"
+        )
+    
+    try:
+        return crud.create_user_ward_permission(
+            db=db, user_id=user_id, ward_id=permission.ward_id, role=permission.role
+        )
+    except Exception as e:
+        logger.error(f"Failed to create user permission: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to create user permission"
+        )
+
+@router.delete("/users/{user_id}/permissions")
+def delete_user_permission(
+    user_id: uuid.UUID,
+    permission: schemas.UserWardPermissionDelete,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_role("super_admin"))
+):
+    """Remove a specific ward permission from a user (Super Admin only)"""
+    # Verify user exists
+    user = crud.get_user(db=db, user_id=user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Find and delete the permission
+    existing_permission = crud.get_user_ward_permission(
+        db=db, user_id=user_id, ward_id=permission.ward_id, role=permission.role
+    )
+    if not existing_permission:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Permission not found"
+        )
+    
+    try:
+        crud.delete_user_ward_permission(db=db, permission_id=existing_permission.id)
+        return {"message": "Permission deleted successfully"}
+    except Exception as e:
+        logger.error(f"Failed to delete user permission: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to delete user permission"
+        )
+
+# Ward listing endpoint for dropdowns
+@router.get("/wards", response_model=List[schemas.WardOut])
+def get_all_wards(
+    db: Session = Depends(get_db),
+    current_user = Depends(require_role("super_admin"))
+):
+    """Get all wards across all hospitals (Super Admin only)"""
+    return crud.get_all_wards(db=db) 

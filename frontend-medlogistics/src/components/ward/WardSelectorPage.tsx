@@ -152,7 +152,7 @@ const WardSelectorPage: React.FC = () => {
               </Box>
             </Box>
             <Typography variant="body1" sx={{ opacity: 0.9 }}>
-              Please select the ward you'll be working in today
+              Please select the ward you&apos;ll be working in today
             </Typography>
           </CardContent>
         </WelcomeCard>

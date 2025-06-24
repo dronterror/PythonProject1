@@ -112,6 +112,33 @@ class UserInviteResponse(BaseModel):
     auth0_user_id: str
 
 # ============================================================================
+# USER WARD PERMISSION SCHEMAS
+# ============================================================================
+
+class UserWardPermissionBase(BaseModel):
+    """Base user ward permission model"""
+    ward_id: uuid.UUID
+    role: UserRole
+
+class UserWardPermissionCreate(UserWardPermissionBase):
+    """Schema for creating new user ward permissions"""
+    pass
+
+class UserWardPermissionDelete(UserWardPermissionBase):
+    """Schema for deleting user ward permissions"""
+    pass
+
+class UserWardPermissionOut(UserWardPermissionBase):
+    """Schema for user ward permission responses"""
+    id: uuid.UUID
+    user_id: uuid.UUID
+    ward: WardOut
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+# ============================================================================
 # DRUG MANAGEMENT SCHEMAS
 # ============================================================================
 

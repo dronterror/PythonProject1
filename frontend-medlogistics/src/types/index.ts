@@ -4,7 +4,7 @@ export interface UserProfile {
   email: string;
   name: string;
   picture?: string;
-  role: 'nurse' | 'doctor' | 'pharmacist' | 'admin';
+  role: 'nurse' | 'doctor' | 'pharmacist' | 'admin' | 'super_admin';
   nurseId?: string;
   permissions?: string[];
 }
