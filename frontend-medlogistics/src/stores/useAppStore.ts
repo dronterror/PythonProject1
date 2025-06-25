@@ -34,6 +34,8 @@ interface AppState {
   hasActiveWard: () => boolean;
   hasSelectedRole: () => boolean;
   isNurse: () => boolean;
+  isDoctor: () => boolean;
+  isPharmacist: () => boolean;
   isSuperAdmin: () => boolean;
   roleNeedsWard: () => boolean;
 }
@@ -130,6 +132,16 @@ export const useAppStore = create<AppState>()(
         isNurse: () => {
           const state = get();
           return state.selectedRole === 'nurse';
+        },
+        
+        isDoctor: () => {
+          const state = get();
+          return state.selectedRole === 'doctor';
+        },
+        
+        isPharmacist: () => {
+          const state = get();
+          return state.selectedRole === 'pharmacist';
         },
         
         isSuperAdmin: () => {

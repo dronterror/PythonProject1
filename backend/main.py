@@ -6,8 +6,8 @@ from routers import drugs, orders, administrations, admin
 
 logging.basicConfig(level=logging.INFO)
 
-# Create database tables
-Base.metadata.create_all(bind=engine)
+# NOTE: Database schema is now managed by Alembic migrations
+# Run: poetry run alembic upgrade head
 
 app = FastAPI(
     title="Medication Logistics Platform with Auth0",

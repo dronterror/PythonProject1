@@ -17,6 +17,14 @@ import { AdminLayout } from '@/components/layout/AdminLayout';
 import DashboardPage from '@/pages/DashboardPage';
 import PatientsPage from '@/pages/PatientsPage';
 import AdminDashboardPage from '@/pages/admin/AdminDashboardPage';
+import HospitalManagementPage from '@/pages/admin/HospitalManagementPage';
+import UserManagementPage from '@/pages/admin/UserManagementPage';
+import DoctorLayout from '@/components/layout/DoctorLayout';
+import PharmacistLayout from '@/components/layout/PharmacistLayout';
+import MyOrdersPage from '@/pages/doctor/MyOrdersPage';
+import PrescribePage from '@/pages/doctor/PrescribePage';
+import InventoryPage from '@/pages/pharmacist/InventoryPage';
+import AlertsPage from '@/pages/pharmacist/AlertsPage';
 import type { UserProfile } from '@/types';
 
 const LoadingContainer = styled(Box)(({ theme }) => ({
@@ -241,6 +249,16 @@ const App: React.FC = () => {
     setSelectedRole(role);
   };
 
+  // Get the appropriate layout based on role
+  const getLayoutForRole = () => {
+    const { isDoctor, isPharmacist, isNurse } = useAppStore.getState();
+    
+    if (isDoctor()) return DoctorLayout;
+    if (isPharmacist()) return PharmacistLayout;
+    if (isNurse()) return NurseLayout;
+    return NurseLayout; // Default fallback
+  };
+
   // Authenticated but no role selected - show role selector
   if ((isAuthenticated || storeAuthenticated) && !hasSelectedRole()) {
     return (
@@ -271,8 +289,8 @@ const App: React.FC = () => {
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<Navigate to="dashboard" replace />} />
             <Route path="dashboard" element={<AdminDashboardPage />} />
-            <Route path="users" element={<div>User Management (Coming Soon)</div>} />
-            <Route path="hospitals" element={<div>Hospital Management (Coming Soon)</div>} />
+            <Route path="users" element={<UserManagementPage />} />
+            <Route path="hospitals" element={<HospitalManagementPage />} />
           </Route>
           
           {/* Role selector route (in case user needs to change role) */}
@@ -285,6 +303,10 @@ const App: React.FC = () => {
     );
   }
 
+  // Get the appropriate layout component
+  const LayoutComponent = getLayoutForRole();
+  const { isDoctor, isPharmacist, isNurse } = useAppStore.getState();
+
   // Fully authenticated with role and ward selected - show role-specific app
   return (
     <ProtectedRoute>
@@ -292,12 +314,36 @@ const App: React.FC = () => {
         {/* Redirect root to dashboard */}
         <Route path="/" element={<Navigate to="/app/dashboard" replace />} />
         
-        {/* Main app routes with layout */}
-        <Route path="/app" element={<NurseLayout />}>
+        {/* Main app routes with role-specific layout */}
+        <Route path="/app" element={<LayoutComponent />}>
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
-          <Route path="patients" element={<PatientsPage />} />
-          <Route path="medications" element={<div>Medications Page (Coming Soon)</div>} />
+          
+          {/* Doctor-specific routes */}
+          {isDoctor() && (
+            <>
+              <Route path="orders" element={<MyOrdersPage />} />
+              <Route path="prescribe" element={<PrescribePage />} />
+            </>
+          )}
+          
+          {/* Pharmacist-specific routes */}
+          {isPharmacist() && (
+            <>
+              <Route path="inventory" element={<InventoryPage />} />
+              <Route path="alerts" element={<AlertsPage />} />
+            </>
+          )}
+          
+          {/* Nurse-specific routes */}
+          {isNurse() && (
+            <>
+              <Route path="patients" element={<PatientsPage />} />
+              <Route path="medications" element={<div>Medications Page (Coming Soon)</div>} />
+            </>
+          )}
+          
+          {/* Common routes */}
           <Route path="profile" element={<div>Profile Page (Coming Soon)</div>} />
           <Route path="settings" element={<div>Settings Page (Coming Soon)</div>} />
           <Route path="notifications" element={<div>Notifications Page (Coming Soon)</div>} />

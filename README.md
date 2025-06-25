@@ -16,30 +16,93 @@ A comprehensive medication logistics platform with unified frontend supporting m
 - **Pharmacist**: Mobile-first PWA for inventory management and alerts
 - **Nurse**: Mobile-first PWA for medication administration and patient care
 
-## Quick Start
+## Development Workflow
 
-1. **Clone and setup**:
+### One-Time Setup
+
+1. **Install Poetry** (Python dependency manager):
+   ```bash
+   # On Windows (PowerShell):
+   (Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | python -
+   
+   # On Linux/macOS:
+   curl -sSL https://install.python-poetry.org | python3 -
+   ```
+
+2. **Clone and setup**:
    ```bash
    git clone <repository>
-   cd ValMed
+   cd ValMed/backend
    ```
 
-2. **Create environment file**:
+3. **Install dependencies**:
    ```bash
-   cp backend/.env.example backend/.env
+   poetry install
    ```
 
-3. **Add hosts entries** (Windows: edit `C:\Windows\System32\drivers\etc\hosts`):
+4. **Create environment file**:
+   ```bash
+   cp .env.example .env
+   # Edit .env with your database credentials and secrets
+   ```
+
+### Local Development
+
+1. **Activate Poetry shell**:
+   ```bash
+   poetry shell
+   ```
+
+2. **Database Migrations** (run migrations for the first time):
+   ```bash
+   poetry run alembic upgrade head
+   ```
+
+3. **Run the application**:
+   ```bash
+   poetry run uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+   ```
+
+4. **Run tests**:
+   ```bash
+   poetry run pytest
+   ```
+
+### Database Migrations
+
+- **Create a new migration** (after changing models):
+  ```bash
+  poetry run alembic revision --autogenerate -m "Description of changes"
+  ```
+
+- **Apply migrations**:
+  ```bash
+  poetry run alembic upgrade head
+  ```
+
+- **Rollback migrations**:
+  ```bash
+  poetry run alembic downgrade -1
+  ```
+
+### Docker Workflow
+
+1. **Add hosts entries** (Windows: edit `C:\Windows\System32\drivers\etc\hosts`):
    ```
    127.0.0.1 medlog.local api.medlog.local
    ```
 
-4. **Build and run**:
+2. **Build and run with Docker**:
    ```bash
    docker-compose up --build
    ```
 
-5. **Access the application**:
+3. **Run database migrations in Docker**:
+   ```bash
+   docker-compose run --rm api poetry run alembic upgrade head
+   ```
+
+4. **Access the application**:
    - Frontend: http://medlog.local (unified interface for all roles)
    - Backend API: http://api.medlog.local
    - Traefik Dashboard: http://localhost:8080
