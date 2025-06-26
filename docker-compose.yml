@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   db:
     image: postgres:15
@@ -11,12 +9,61 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     networks:
-      - web
+      - medlog-net
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U valmed"]
       interval: 10s
       timeout: 5s
       retries: 5
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0
+    container_name: medlog_keycloak
+    environment:
+      - KEYCLOAK_ADMIN=${KEYCLOAK_ADMIN:-admin}
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      - KC_DB=postgres
+      - KC_DB_URL=jdbc:postgresql://db:5432/valmed
+      - KC_DB_USERNAME=valmed
+      - KC_DB_PASSWORD=valmedpass
+      - KC_HOSTNAME=keycloak.medlog.local
+      - KC_HTTP_ENABLED=true
+      - KC_HOSTNAME_STRICT=false
+      - KC_HOSTNAME_STRICT_HTTPS=false
+      - KC_PROXY_ADDRESS_FORWARDING=true
+      - KC_HTTP_CORS_ORIGINS=http://medlog.local,http://localhost,http://localhost:3000,http://localhost:5173,http://localhost:80,http://localhost:8081
+      - KC_LOG_LEVEL=DEBUG
+      - KC_PROXY=edge
+      - KC_HEALTH_ENABLED=true
+    command: start-dev
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - "8080"
+    labels:
+      - "traefik.enable=true"
+      # HTTP router
+      - "traefik.http.routers.keycloak.rule=Host(`keycloak.medlog.local`)"
+      - "traefik.http.routers.keycloak.entrypoints=web"
+      - "traefik.http.services.keycloak.loadbalancer.server.port=8080"
+      # HTTPS router (for future SSL)
+      - "traefik.http.routers.keycloak-secure.rule=Host(`keycloak.medlog.local`)"
+      - "traefik.http.routers.keycloak-secure.entrypoints=websecure"
+      - "traefik.http.routers.keycloak-secure.tls=true"
+      # CORS Middleware definition
+      - "traefik.http.middlewares.keycloak-cors.headers.accesscontrolallowmethods=GET,OPTIONS,PUT,POST,DELETE,PATCH"
+      - "traefik.http.middlewares.keycloak-cors.headers.accessControlAllowOriginList=*"
+      - "traefik.http.middlewares.keycloak-cors.headers.accesscontrolallowheaders=*"
+      - "traefik.http.middlewares.keycloak-cors.headers.accesscontrolmaxage=100"
+      - "traefik.http.middlewares.keycloak-cors.headers.addvaryheader=true"
+      # Applying CORS middleware to routers
+      - "traefik.http.routers.keycloak.middlewares=keycloak-cors"
+      - "traefik.http.routers.keycloak-secure.middlewares=keycloak-cors"
+    networks:
+      - medlog-net
+    ports:
+      - "8081:8080"
 
   backend:
     build:
@@ -30,9 +77,10 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.backend.rule=PathPrefix(`/api`)"
+      - "traefik.http.routers.backend.entrypoints=web"
       - "traefik.http.services.backend.loadbalancer.server.port=8000"
     networks:
-      - web
+      - medlog-net
     environment:
       - PYTHONPATH=/app/backend
       - DATABASE_URL=postgresql://valmed:valmedpass@db:5432/valmed
@@ -41,28 +89,41 @@ services:
     build:
       context: ./frontend-medlogistics
     container_name: medlog_frontend
+    environment:
+      - NODE_ENV=development
+      - VITE_KEYCLOAK_URL=https://keycloak.medlog.local
     labels:
       - "traefik.enable=true"
+      # HTTP router
       - "traefik.http.routers.frontend.rule=Host(`localhost`) || Host(`medlog.local`)"
+      - "traefik.http.routers.frontend.entrypoints=web"
       - "traefik.http.services.frontend.loadbalancer.server.port=80"
+      # HTTPS router (for future SSL)
+      - "traefik.http.routers.frontend-secure.rule=Host(`localhost`) || Host(`medlog.local`)"
+      - "traefik.http.routers.frontend-secure.entrypoints=websecure"
+      - "traefik.http.routers.frontend-secure.tls=true"
     networks:
-      - web
+      - medlog-net
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - "80"
 
   traefik:
     image: traefik:v2.10
-    command:
-      - "--api.insecure=true"
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.web.address=:80"
+    container_name: medlog_traefik
     ports:
       - "80:80"
+      - "443:443"
       - "8080:8080" # Traefik dashboard
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ./traefik.yml:/traefik.yml
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/tls.yml:/etc/traefik/tls.yml:ro
+      - ./traefik/certs:/certs:ro
     networks:
-      - web
+      - medlog-net
 
   test:
     build:
@@ -76,6 +137,8 @@ services:
     environment:
       - PYTHONPATH=/app
       - DATABASE_URL=postgresql://valmed:valmedpass@db:5432/valmed
+    networks:
+      - medlog-net
     restart: "no"
 
   # Service to run database migrations
@@ -91,11 +154,13 @@ services:
     environment:
       - PYTHONPATH=/app
       - DATABASE_URL=postgresql://valmed:valmedpass@db:5432/valmed
+    networks:
+      - medlog-net
     restart: "no"
 
 volumes:
   pgdata:
 
 networks:
-  web:
+  medlog-net:
     external: false 

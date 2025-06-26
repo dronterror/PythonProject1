@@ -1,6 +1,9 @@
 import '@testing-library/jest-dom'
 import { vi } from 'vitest'
 
+// Make vi globally available
+global.vi = vi
+
 // Mock IntersectionObserver
 global.IntersectionObserver = vi.fn().mockImplementation(() => ({
   observe: vi.fn(),
@@ -66,4 +69,15 @@ global.registration = {
     subscribe: vi.fn(),
     getSubscription: vi.fn(),
   },
-} 
+}
+
+// Mock Keycloak instead of Auth0
+global.fetch = vi.fn()
+
+// Mock environment variables
+process.env.NODE_ENV = 'test'
+
+// Extend expect with jest-dom matchers
+import { expect } from 'vitest'
+import * as matchers from '@testing-library/jest-dom/matchers'
+expect.extend(matchers) 

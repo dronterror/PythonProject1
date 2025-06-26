@@ -32,17 +32,17 @@ def get_users(db: Session, skip: int = 0, limit: int = 100):
 def create_user(db: Session, user: schemas.UserCreate):
     db_user = models.User(
         email=user.email,
-        auth0_user_id=user.auth0_user_id,
+        auth_provider_id=user.auth_provider_id,
         role=user.role,
-        hashed_password=None  # Auth0 handles authentication
+        hashed_password=None  # Keycloak handles authentication
     )
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
     return db_user
 
-def get_user_by_auth0_id(db: Session, auth0_user_id: str):
-    return db.query(models.User).filter(models.User.auth0_user_id == auth0_user_id).first()
+def get_user_by_auth_provider_id(db: Session, auth_provider_id: str):
+    return db.query(models.User).filter(models.User.auth_provider_id == auth_provider_id).first()
 
 # Hospital CRUD
 

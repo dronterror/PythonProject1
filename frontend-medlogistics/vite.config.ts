@@ -72,7 +72,22 @@ export default defineConfig({
   },
   server: {
     port: 3000,
-    host: true
+    host: true,
+    proxy: {
+      '/keycloak': {
+        target: 'http://keycloak.medlog.local',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/keycloak/, ''),
+        configure: (proxy, options) => {
+          proxy.on('error', (err, req, res) => {
+            console.log('Keycloak proxy error:', err);
+          });
+          proxy.on('proxyReq', (proxyReq, req, res) => {
+            console.log('Sending Request to Keycloak:', req.method, req.url);
+          });
+        }
+      }
+    }
   },
   build: {
     target: 'esnext',

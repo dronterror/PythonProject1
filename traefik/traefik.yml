@@ -1,0 +1,18 @@
+# traefik/traefik.yml
+log:
+  level: DEBUG # Enable debug logging
+
+api:
+  insecure: true # For the Traefik dashboard
+
+entryPoints:
+  web:
+    address: ":80"
+  websecure:
+    address: ":443"
+
+providers:
+  docker:
+    exposedByDefault: false
+  file:
+    filename: /etc/traefik/tls.yml # Load the dynamic TLS config 

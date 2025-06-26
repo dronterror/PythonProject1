@@ -1,28 +1,16 @@
 import { ReactNode } from 'react';
-import { Auth0Provider } from '@auth0/auth0-react';
-import { MockAuth0Provider } from './MockAuth0Context';
+import { KeycloakAuthProvider } from './KeycloakAuthContext';
 
 interface AuthWrapperProps {
   children: ReactNode;
-  auth0Config: any;
-  hasValidAuth0Config: boolean;
 }
 
-const AuthWrapper = ({ children, auth0Config, hasValidAuth0Config }: AuthWrapperProps) => {
-  if (hasValidAuth0Config) {
-    // Use real Auth0 provider when valid config is available
-    return (
-      <Auth0Provider {...auth0Config}>
-        {children}
-      </Auth0Provider>
-    );
-  }
-
-  // Use mock provider for demo mode
+const AuthWrapper = ({ children }: AuthWrapperProps) => {
+  // Always use Keycloak provider
   return (
-    <MockAuth0Provider>
+    <KeycloakAuthProvider>
       {children}
-    </MockAuth0Provider>
+    </KeycloakAuthProvider>
   );
 };
 

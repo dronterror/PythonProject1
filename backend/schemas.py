@@ -30,19 +30,19 @@ class UserBase(BaseModel):
     role: UserRole         # User's role in the system
 
 class UserCreate(UserBase):
-    """Schema for creating new users with Auth0"""
-    auth0_user_id: str     # Auth0 user ID from token sub claim
+    """Schema for creating new users with Keycloak"""
+    auth_provider_id: str     # Keycloak user ID from token sub claim
 
 class UserUpdate(BaseModel):
     """Schema for updating users (all fields optional)"""
     email: Optional[EmailStr] = None
     role: Optional[UserRole] = None
-    auth0_user_id: Optional[str] = None
+    auth_provider_id: Optional[str] = None
 
 class UserOut(UserBase):
     """Schema for user responses"""
     id: uuid.UUID          # User ID
-    auth0_user_id: str     # Auth0 user ID
+    auth_provider_id: str     # Keycloak user ID
     created_at: datetime   # User creation timestamp
     
     class Config:
@@ -109,7 +109,8 @@ class UserInviteResponse(BaseModel):
     """Schema for user invite response"""
     message: str
     user_id: uuid.UUID
-    auth0_user_id: str
+    keycloak_user_id: str
+    keycloak_instructions: Optional[str] = None
 
 # ============================================================================
 # USER WARD PERMISSION SCHEMAS

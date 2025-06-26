@@ -1,0 +1,5 @@
+# traefik/tls.yml
+tls:
+  certificates:
+    - certFile: "/certs/medlog.local+4.pem"
+      keyFile: "/certs/medlog.local+4-key.pem" 

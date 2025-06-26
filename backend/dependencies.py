@@ -3,7 +3,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from database import SessionLocal
 from models import User, UserRole
-from security import verify_token, get_auth0_user_id, extract_user_roles
+from security import verify_token, get_keycloak_user_id, extract_user_roles
 import logging
 from typing import Dict, Any
 
@@ -23,7 +23,7 @@ def get_current_user(
     db: Session = Depends(get_db)
 ) -> User:
     """
-    Get the current user from Auth0 JWT token.
+    Get the current user from Keycloak JWT token.
     
     Args:
         credentials: JWT token from the Authorization header
@@ -38,13 +38,13 @@ def get_current_user(
     # Verify the JWT token
     payload = verify_token(credentials.credentials)
     
-    # Extract Auth0 user ID
-    auth0_user_id = get_auth0_user_id(payload)
+    # Extract Keycloak user ID
+    keycloak_user_id = get_keycloak_user_id(payload)
     
     # Find the user in our database
-    user = db.query(User).filter(User.auth0_user_id == auth0_user_id).first()
+    user = db.query(User).filter(User.auth_provider_id == keycloak_user_id).first()
     if not user:
-        logger.warning(f"User with Auth0 ID {auth0_user_id} not found in database")
+        logger.warning(f"User with Keycloak ID {keycloak_user_id} not found in database")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, 
             detail="User not found in system"
@@ -70,7 +70,7 @@ def require_role(role_name: str):
 def require_roles(allowed_roles: list[str]):
     """
     Dependency factory that accepts a list of allowed roles for more flexible access control.
-    Checks both the user's database role and Auth0 token roles.
+    Checks both the user's database role and Keycloak token roles.
     
     Args:
         allowed_roles: List of role names that are allowed to access the endpoint
@@ -85,7 +85,7 @@ def require_roles(allowed_roles: list[str]):
         # Check database role
         user_db_role = current_user.role.value
         
-        # Check Auth0 token roles
+        # Check Keycloak token roles
         token_roles = extract_user_roles(token_payload)
         
         # User has access if they have the role in either location

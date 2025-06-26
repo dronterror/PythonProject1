@@ -1,17 +1,15 @@
 import React, { useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { useAuth0 } from '@auth0/auth0-react';
-import { useMockAuth0 } from '@/components/auth/MockAuth0Context';
-import { Box, CircularProgress, Typography, Button, Container, Card, CardContent } from '@mui/material';
+import { useKeycloakAuth } from '@/components/auth/KeycloakAuthContext';
+import { Box, CircularProgress, Typography } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import { useAppStore, useActiveWard } from '@/stores/useAppStore';
 import { setAuthToken, clearAuthToken } from '@/lib/apiClient';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import TokenManager from '@/components/auth/TokenManager';
+import KeycloakLogin from '@/components/auth/KeycloakLogin';
 import RoleSelector from '@/components/RoleSelector';
 import WardSelectorPage from '@/components/ward/WardSelectorPage';
-import DemoLoginButton from '@/components/demo/DemoLoginButton';
-import SimpleDemoApp from '@/components/demo/SimpleDemoApp';
 import NurseLayout from '@/components/layout/NurseLayout';
 import { AdminLayout } from '@/components/layout/AdminLayout';
 import DashboardPage from '@/pages/DashboardPage';
@@ -37,22 +35,6 @@ const LoadingContainer = styled(Box)(({ theme }) => ({
   padding: theme.spacing(3),
 }));
 
-const LoginContainer = styled(Container)(({ theme }) => ({
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'center',
-  minHeight: '100vh',
-  backgroundColor: theme.palette.background.default,
-}));
-
-const LoginCard = styled(Card)(({ theme }) => ({
-  padding: theme.spacing(4),
-  textAlign: 'center',
-  maxWidth: 400,
-  width: '100%',
-}));
-
 // Loading component
 const AppLoading: React.FC<{ message?: string }> = ({ message = 'Loading...' }) => {
   return (
@@ -65,105 +47,22 @@ const AppLoading: React.FC<{ message?: string }> = ({ message = 'Loading...' }) 
   );
 };
 
-// Login page component
-const LoginPage: React.FC = () => {
-  const { loginWithRedirect } = useAuth0();
-
-  const handleLogin = () => {
-    loginWithRedirect({
-      appState: {
-        returnTo: window.location.pathname,
-      },
-    });
-  };
-
-  return (
-    <Box>
-      <LoginContainer maxWidth="sm">
-        <LoginCard>
-          <CardContent>
-            <Typography variant="h4" component="h1" gutterBottom color="primary">
-              MedLogistics
-            </Typography>
-            <Typography variant="body1" color="textSecondary" paragraph>
-              Medication Management Platform
-            </Typography>
-            <Typography variant="body2" color="textSecondary" paragraph>
-              Please sign in to access your dashboard and manage patient medications.
-            </Typography>
-            
-            {/* DEMO MODE BUTTON - Now using dedicated component */}
-            <DemoLoginButton />
-            
-            {/* Simple Demo Mode (fallback) */}
-            <Button
-              variant="outlined"
-              size="medium"
-              onClick={() => {
-                // Render simple demo app instead
-                const simpleDemoContainer = document.getElementById('root');
-                if (simpleDemoContainer) {
-                  window.location.hash = '#simple-demo';
-                  window.location.reload();
-                }
-              }}
-              sx={{ mt: 2, minWidth: 200, backgroundColor: '#ff9800', color: 'white', '&:hover': { backgroundColor: '#f57c00' } }}
-            >
-              🔧 Simple Demo (Fallback)
-            </Button>
-            
-            {/* Less prominent Auth0 button */}
-            <Button
-              variant="outlined"
-              size="small"
-              onClick={handleLogin}
-              sx={{ mt: 3, minWidth: 150, opacity: 0.6 }}
-            >
-              Sign In (Auth0 - Not Working)
-            </Button>
-          </CardContent>
-        </LoginCard>
-      </LoginContainer>
-      
-      {/* Development Token Manager */}
-      <TokenManager />
-    </Box>
-  );
-};
-
 // Main App component
 const App: React.FC = () => {
-  // Check if we should show simple demo app
-  if (window.location.hash.includes('simple-demo')) {
-    return <SimpleDemoApp />;
-  }
-
-  // Check if we're using real Auth0 or mock for demo
-  const hasValidAuth0Config = Boolean(
-    import.meta.env.VITE_AUTH0_DOMAIN && 
-    import.meta.env.VITE_AUTH0_DOMAIN !== 'your-auth0-domain.auth0.com' &&
-    import.meta.env.VITE_AUTH0_CLIENT_ID &&
-    import.meta.env.VITE_AUTH0_CLIENT_ID !== 'your-auth0-client-id'
-  );
-  
-  // Use real Auth0 or mock based on configuration
-  const realAuth0 = useAuth0();
-  const mockAuth0 = useMockAuth0();
-  
+  // Use Keycloak authentication
   const { 
     isLoading: authLoading, 
     isAuthenticated, 
     user, 
-    getAccessTokenSilently,
+    getAccessToken,
     error: authError 
-  } = hasValidAuth0Config ? realAuth0 : mockAuth0;
+  } = useKeycloakAuth();
   
   const { 
     setSession, 
     clearSession, 
     setSelectedRole,
     hasSelectedRole,
-    isSuperAdmin,
     roleNeedsWard,
     isAuthenticated: storeAuthenticated 
   } = useAppStore();
@@ -176,21 +75,26 @@ const App: React.FC = () => {
       if (isAuthenticated && user) {
         try {
           // Get access token and store it
-          const token = await getAccessTokenSilently();
-          setAuthToken(token);
+          const token = getAccessToken();
+          if (token) {
+            setAuthToken(token);
 
-          // Create user profile from Auth0 user
-          const profile: UserProfile = {
-            sub: user.sub!,
-            email: user.email!,
-            name: user.name!,
-            picture: user.picture,
-            role: 'nurse', // Default role - this could come from user metadata
-            nurseId: user.sub,
-          };
+            // Create user profile from Keycloak user
+            const profile: UserProfile = {
+              sub: user.sub,
+              email: user.email,
+              name: user.name || user.email,
+              picture: undefined, // Keycloak might not have pictures
+              role: user.roles.includes('super-admin') ? 'super_admin' : 
+                    user.roles.includes('doctor') ? 'doctor' :
+                    user.roles.includes('pharmacist') ? 'pharmacist' :
+                    user.roles.includes('nurse') ? 'nurse' : 'nurse', // Default to nurse
+              nurseId: user.sub,
+            };
 
-          // Set session in store
-          setSession(profile);
+            // Set session in store
+            setSession(profile);
+          }
         } catch (error) {
           console.error('Error setting up authentication:', error);
           clearSession();
@@ -204,72 +108,73 @@ const App: React.FC = () => {
     };
 
     handleAuth();
-  }, [isAuthenticated, user, getAccessTokenSilently, setSession, clearSession, storeAuthenticated]);
+  }, [isAuthenticated, user, getAccessToken, setSession, clearSession, storeAuthenticated]);
 
-  // Show loading while Auth0 is initializing
+  // Show loading state while checking authentication
   if (authLoading) {
-    return <AppLoading message="Initializing application..." />;
+    return <AppLoading message="Checking authentication..." />;
   }
 
-  // Show error if authentication failed
+  // Show login if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <Box>
+        <KeycloakLogin />
+        {/* Development Token Manager */}
+        <TokenManager />
+      </Box>
+    );
+  }
+
+  // Show authentication error
   if (authError) {
     return (
       <LoadingContainer>
         <Typography variant="h6" color="error" gutterBottom>
           Authentication Error
         </Typography>
-        <Typography variant="body2" color="textSecondary" paragraph>
-          {authError.message}
+        <Typography variant="body2" color="textSecondary">
+          {authError}
         </Typography>
-        <Button variant="contained" onClick={() => window.location.reload()}>
-          Retry
-        </Button>
       </LoadingContainer>
     );
   }
 
-  // Debug authentication state
-  if (import.meta.env.DEV || window.location.hash.includes('demo')) {
-    console.warn('Auth state check:', {
-      isAuthenticated,
-      storeAuthenticated,
-      hasValidAuth0Config,
-      userProfile: useAppStore.getState().userProfile?.email,
-    });
-  }
-
-  // Prioritize store authentication for demo mode
-  // Not authenticated - show login page
-  if (!storeAuthenticated && !isAuthenticated) {
-    return <LoginPage />;
-  }
-
-  // Handle role selection callback
+  // Role selection logic
   const handleRoleSelect = (role: string) => {
     setSelectedRole(role);
   };
 
-  // Get the appropriate layout based on role
   const getLayoutForRole = () => {
-    const { isDoctor, isPharmacist, isNurse } = useAppStore.getState();
+    if (!hasSelectedRole) return null;
     
-    if (isDoctor()) return DoctorLayout;
-    if (isPharmacist()) return PharmacistLayout;
-    if (isNurse()) return NurseLayout;
-    return NurseLayout; // Default fallback
+    switch (useAppStore.getState().selectedRole) {
+      case 'nurse':
+        return <NurseLayout />;
+      case 'doctor':
+        return <DoctorLayout />;
+      case 'pharmacist':
+        return <PharmacistLayout />;
+      case 'super-admin':
+        return <AdminLayout />;
+      default:
+        return <NurseLayout />; // Fallback
+    }
   };
 
-  // Authenticated but no role selected - show role selector
-  if ((isAuthenticated || storeAuthenticated) && !hasSelectedRole()) {
+  // Show role selector if user hasn't selected a role yet
+  if (!hasSelectedRole) {
     return (
       <ProtectedRoute>
-        <RoleSelector onRoleSelect={handleRoleSelect} />
+        <RoleSelector 
+          onRoleSelect={handleRoleSelect}
+        />
       </ProtectedRoute>
     );
   }
 
-  // Role selected but needs ward and no ward selected - show ward selector
-  if ((isAuthenticated || storeAuthenticated) && hasSelectedRole() && roleNeedsWard() && !wardId) {
+  // Show ward selector if role needs ward selection and no ward is selected
+  if (roleNeedsWard() && !wardId) {
     return (
       <ProtectedRoute>
         <WardSelectorPage />
@@ -277,87 +182,36 @@ const App: React.FC = () => {
     );
   }
 
-  // Super admin - show admin interface (no ward needed)
-  if ((isAuthenticated || storeAuthenticated) && isSuperAdmin()) {
-    return (
-      <ProtectedRoute>
-        <Routes>
-          {/* Redirect root to admin dashboard */}
-          <Route path="/" element={<Navigate to="/admin/dashboard" replace />} />
-          
-          {/* Admin routes */}
-          <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={<Navigate to="dashboard" replace />} />
-            <Route path="dashboard" element={<AdminDashboardPage />} />
-            <Route path="users" element={<UserManagementPage />} />
-            <Route path="hospitals" element={<HospitalManagementPage />} />
-          </Route>
-          
-          {/* Role selector route (in case user needs to change role) */}
-          <Route path="/select-role" element={<RoleSelector onRoleSelect={handleRoleSelect} />} />
-
-          {/* Catch all - redirect to admin dashboard */}
-          <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
-        </Routes>
-      </ProtectedRoute>
-    );
-  }
-
-  // Get the appropriate layout component
-  const LayoutComponent = getLayoutForRole();
-  const { isDoctor, isPharmacist, isNurse } = useAppStore.getState();
-
-  // Fully authenticated with role and ward selected - show role-specific app
+  // Main application routes
   return (
     <ProtectedRoute>
       <Routes>
-        {/* Redirect root to dashboard */}
-        <Route path="/" element={<Navigate to="/app/dashboard" replace />} />
+        {/* Dashboard Routes */}
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/dashboard" element={<DashboardPage />} />
         
-        {/* Main app routes with role-specific layout */}
-        <Route path="/app" element={<LayoutComponent />}>
-          <Route index element={<Navigate to="dashboard" replace />} />
-          <Route path="dashboard" element={<DashboardPage />} />
-          
-          {/* Doctor-specific routes */}
-          {isDoctor() && (
-            <>
-              <Route path="orders" element={<MyOrdersPage />} />
-              <Route path="prescribe" element={<PrescribePage />} />
-            </>
-          )}
-          
-          {/* Pharmacist-specific routes */}
-          {isPharmacist() && (
-            <>
-              <Route path="inventory" element={<InventoryPage />} />
-              <Route path="alerts" element={<AlertsPage />} />
-            </>
-          )}
-          
-          {/* Nurse-specific routes */}
-          {isNurse() && (
-            <>
-              <Route path="patients" element={<PatientsPage />} />
-              <Route path="medications" element={<div>Medications Page (Coming Soon)</div>} />
-            </>
-          )}
-          
-          {/* Common routes */}
-          <Route path="profile" element={<div>Profile Page (Coming Soon)</div>} />
-          <Route path="settings" element={<div>Settings Page (Coming Soon)</div>} />
-          <Route path="notifications" element={<div>Notifications Page (Coming Soon)</div>} />
-        </Route>
-
-        {/* Ward selector route (in case user needs to change ward) */}
-        <Route path="/select-ward" element={<WardSelectorPage />} />
+        {/* Nurse Routes */}
+        <Route path="/patients" element={<PatientsPage />} />
         
-        {/* Role selector route (in case user needs to change role) */}
-        <Route path="/select-role" element={<RoleSelector onRoleSelect={handleRoleSelect} />} />
-
-        {/* Catch all - redirect to dashboard */}
-        <Route path="*" element={<Navigate to="/app/dashboard" replace />} />
+        {/* Doctor Routes */}
+        <Route path="/prescribe" element={<PrescribePage />} />
+        <Route path="/my-orders" element={<MyOrdersPage />} />
+        
+        {/* Pharmacist Routes */}
+        <Route path="/inventory" element={<InventoryPage />} />
+        <Route path="/alerts" element={<AlertsPage />} />
+        
+        {/* Admin Routes */}
+        <Route path="/admin" element={<AdminDashboardPage />} />
+        <Route path="/admin/hospitals" element={<HospitalManagementPage />} />
+        <Route path="/admin/users" element={<UserManagementPage />} />
+        
+        {/* Fallback */}
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
+      
+      {/* Role-specific layout wrapper */}
+      {getLayoutForRole()}
     </ProtectedRoute>
   );
 };

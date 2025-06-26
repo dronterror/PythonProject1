@@ -2,67 +2,65 @@ import os
 import json
 import jwt
 import requests
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from fastapi import HTTPException, status
 from functools import lru_cache
 import logging
+from config import settings
 
 logger = logging.getLogger(__name__)
 
-# Auth0 configuration from environment variables
-AUTH0_DOMAIN = os.getenv("AUTH0_DOMAIN")
-AUTH0_API_AUDIENCE = os.getenv("AUTH0_API_AUDIENCE")
-AUTH0_ALGORITHM = "RS256"
-
-if not AUTH0_DOMAIN or not AUTH0_API_AUDIENCE:
-    raise ValueError("AUTH0_DOMAIN and AUTH0_API_AUDIENCE environment variables must be set")
-
 @lru_cache(maxsize=1)
-def get_jwks() -> Dict[str, Any]:
+def get_keycloak_public_key() -> str:
     """
-    Fetch the JSON Web Key Set from Auth0.
-    Cached to avoid repeated requests to Auth0.
+    Fetch the public key from Keycloak JWKS endpoint.
+    Cached to avoid repeated requests to Keycloak.
     """
     try:
-        jwks_url = f"https://{AUTH0_DOMAIN}/.well-known/jwks.json"
-        response = requests.get(jwks_url, timeout=10)
+        response = requests.get(settings.keycloak_jwks_url, timeout=10)
         response.raise_for_status()
-        return response.json()
+        jwks = response.json()
+        
+        # Extract the first key (assuming single key setup)
+        if jwks.get("keys"):
+            key_data = jwks["keys"][0]
+            # Convert JWK to PEM format
+            from jwt.algorithms import RSAAlgorithm
+            public_key = RSAAlgorithm.from_jwk(key_data)
+            return public_key
+        else:
+            raise Exception("No keys found in JWKS response")
+            
     except requests.RequestException as e:
-        logger.error(f"Failed to fetch JWKS from Auth0: {e}")
+        logger.error(f"Failed to fetch JWKS from Keycloak: {e}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Unable to verify authentication tokens"
+            detail="Unable to verify authentication tokens - Keycloak unavailable"
+        )
+    except Exception as e:
+        logger.error(f"Failed to process JWKS from Keycloak: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Unable to process authentication keys"
         )
 
-def get_rsa_key(token: str) -> Dict[str, Any]:
+@lru_cache(maxsize=1)
+def get_keycloak_issuer() -> str:
     """
-    Extract the RSA key from JWKS for token verification.
+    Get the issuer from Keycloak OpenID Connect configuration.
     """
     try:
-        unverified_header = jwt.get_unverified_header(token)
-        jwks = get_jwks()
-        
-        for key in jwks["keys"]:
-            if key["kid"] == unverified_header["kid"]:
-                return {
-                    "kty": key["kty"],
-                    "kid": key["kid"],
-                    "use": key["use"],
-                    "n": key["n"],
-                    "e": key["e"]
-                }
-    except Exception as e:
-        logger.error(f"Failed to extract RSA key: {e}")
-        
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Unable to find appropriate key for token verification"
-    )
+        response = requests.get(settings.keycloak_openid_connect_url, timeout=10)
+        response.raise_for_status()
+        oidc_config = response.json()
+        return oidc_config.get("issuer", settings.keycloak_issuer)
+    except requests.RequestException as e:
+        logger.warning(f"Failed to fetch OIDC config, using default issuer: {e}")
+        return settings.keycloak_issuer
 
 def verify_token(token: str) -> Dict[str, Any]:
     """
-    Verify and decode an Auth0 JWT token.
+    Verify and decode a Keycloak JWT token.
     
     Args:
         token: The JWT token to verify
@@ -80,16 +78,26 @@ def verify_token(token: str) -> Dict[str, Any]:
         )
     
     try:
-        # Get the RSA key for verification
-        rsa_key = get_rsa_key(token)
+        # Get the public key for verification
+        public_key = get_keycloak_public_key()
+        
+        # Get the issuer
+        issuer = get_keycloak_issuer()
         
         # Verify and decode the token
         payload = jwt.decode(
             token,
-            rsa_key,
-            algorithms=[AUTH0_ALGORITHM],
-            audience=AUTH0_API_AUDIENCE,
-            issuer=f"https://{AUTH0_DOMAIN}/"
+            public_key,
+            algorithms=["RS256"],
+            audience=settings.keycloak_client_id,
+            issuer=issuer,
+            options={
+                "verify_signature": True,
+                "verify_exp": True,
+                "verify_iat": True,
+                "verify_aud": True,
+                "verify_iss": True
+            }
         )
         
         return payload
@@ -131,9 +139,9 @@ def verify_token(token: str) -> Dict[str, Any]:
             detail="Token verification failed"
         )
 
-def extract_user_roles(payload: Dict[str, Any]) -> list[str]:
+def extract_user_roles(payload: Dict[str, Any]) -> List[str]:
     """
-    Extract user roles from the Auth0 token payload.
+    Extract user roles from the Keycloak token payload.
     
     Args:
         payload: Decoded JWT payload
@@ -141,19 +149,24 @@ def extract_user_roles(payload: Dict[str, Any]) -> list[str]:
     Returns:
         List of user roles
     """
-    # Auth0 custom claims are typically namespaced
-    roles_claim = "https://api.medlogistics.com/roles"
-    return payload.get(roles_claim, [])
+    # Keycloak stores realm roles in realm_access.roles
+    realm_access = payload.get("realm_access", {})
+    roles = realm_access.get("roles", [])
+    
+    # Filter out Keycloak default roles to only return application roles
+    app_roles = [role for role in roles if role in ["super-admin", "pharmacist", "doctor", "nurse"]]
+    
+    return app_roles
 
-def get_auth0_user_id(payload: Dict[str, Any]) -> str:
+def get_keycloak_user_id(payload: Dict[str, Any]) -> str:
     """
-    Extract the Auth0 user ID from the token payload.
+    Extract the Keycloak user ID from the token payload.
     
     Args:
         payload: Decoded JWT payload
         
     Returns:
-        Auth0 user ID (sub claim)
+        Keycloak user ID (sub claim)
     """
     user_id = payload.get("sub")
     if not user_id:
@@ -161,4 +174,28 @@ def get_auth0_user_id(payload: Dict[str, Any]) -> str:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token: missing user ID"
         )
-    return user_id 
+    return user_id
+
+def get_user_email(payload: Dict[str, Any]) -> Optional[str]:
+    """
+    Extract the user email from the token payload.
+    
+    Args:
+        payload: Decoded JWT payload
+        
+    Returns:
+        User email if available
+    """
+    return payload.get("email")
+
+def get_user_preferred_username(payload: Dict[str, Any]) -> Optional[str]:
+    """
+    Extract the preferred username from the token payload.
+    
+    Args:
+        payload: Decoded JWT payload
+        
+    Returns:
+        Preferred username if available
+    """
+    return payload.get("preferred_username") 

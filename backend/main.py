@@ -3,29 +3,32 @@ from fastapi.middleware.cors import CORSMiddleware
 import logging
 from database import engine, Base
 from routers import drugs, orders, administrations, admin
+from config import settings
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=getattr(logging, settings.log_level.upper()))
 
 # NOTE: Database schema is now managed by Alembic migrations
 # Run: poetry run alembic upgrade head
 
 app = FastAPI(
-    title="Medication Logistics Platform with Auth0",
-    description="Professional medication logistics platform with Auth0 authentication and admin capabilities",
-    version="2.0.0"
+    title="Medication Logistics Platform with Keycloak",
+    description="Professional medication logistics platform with Keycloak OIDC authentication and admin capabilities",
+    version="3.0.0"
 )
 
-# CORS: Configure for unified frontend
+# Define the origins list as per the plan
+origins = [
+    "https://admin.medlog.local",
+    "https://doctor.medlog.local",
+    "https://pharmacist.medlog.local",
+    # Add your local development URLs if you ever run the frontend outside of Docker
+    "http://localhost:5173",
+]
+
+# CORS: Configure for unified frontend and Keycloak
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",  # Frontend dev
-        "http://localhost:5173",  # Frontend dev (vite default)
-        "http://localhost:4173",  # Frontend production preview
-        "https://medlog.local",   # Production frontend
-        "http://medlog.local",    # Local frontend
-        # Add your production domains here
-    ],
+    allow_origins=origins, # Use the new origins list
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -1,53 +1,71 @@
 import React from 'react';
-import { withAuthenticationRequired } from '@auth0/auth0-react';
 import { Box, CircularProgress, Typography } from '@mui/material';
-import { styled } from '@mui/material/styles';
+import { useKeycloakAuth } from './KeycloakAuthContext';
+import KeycloakLogin from './KeycloakLogin';
 
-const LoadingContainer = styled(Box)(({ theme }) => ({
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'center',
-  minHeight: '100vh',
-  padding: theme.spacing(3),
-  backgroundColor: theme.palette.background.default,
-}));
+interface ProtectedRouteProps {
+  children: React.ReactNode;
+  requiredRole?: string;
+}
 
-const LoadingContent = styled(Box)(({ theme }) => ({
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  gap: theme.spacing(3),
-}));
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
+  children, 
+  requiredRole 
+}) => {
+  const { isLoading, isAuthenticated, hasRole } = useKeycloakAuth();
 
-// Loading component shown while authentication is being verified
-const AuthenticationLoading: React.FC = () => {
-  return (
-    <LoadingContainer>
-      <LoadingContent>
-        <CircularProgress size={48} thickness={4} />
-        <Typography variant="h6" color="textSecondary" align="center">
-          Verifying authentication...
+  // Show loading spinner while checking authentication
+  if (isLoading) {
+    return (
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '100vh',
+          gap: 2,
+        }}
+      >
+        <CircularProgress />
+        <Typography variant="body2" color="text.secondary">
+          Loading...
         </Typography>
-        <Typography variant="body2" color="textSecondary" align="center">
-          Please wait while we securely log you in
+      </Box>
+    );
+  }
+
+  // Show login if not authenticated
+  if (!isAuthenticated) {
+    return <KeycloakLogin />;
+  }
+
+  // Check role requirements
+  if (requiredRole && !hasRole(requiredRole)) {
+    return (
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '100vh',
+          gap: 2,
+        }}
+      >
+        <Typography variant="h6" color="error">
+          Access Denied
         </Typography>
-      </LoadingContent>
-    </LoadingContainer>
-  );
-};
+        <Typography variant="body2" color="text.secondary">
+          You don't have permission to access this resource.
+          Required role: {requiredRole}
+        </Typography>
+      </Box>
+    );
+  }
 
-// Higher-order component that protects routes with Auth0 authentication
-const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const ProtectedComponent = withAuthenticationRequired(
-    () => <>{children}</>,
-    {
-      onRedirecting: () => <AuthenticationLoading />,
-      returnTo: window.location.pathname,
-    }
-  );
-
-  return <ProtectedComponent />;
+  // Render protected content
+  return <>{children}</>;
 };
 
 export default ProtectedRoute; 

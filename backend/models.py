@@ -65,10 +65,10 @@ class User(Base):
     __tablename__ = "users"
     id = Column(UUID(as_uuid=True), primary_key=True, index=True, default=uuid.uuid4)
     email = Column(String, unique=True, nullable=False, index=True)
-    hashed_password = Column(String, nullable=True)  # Made nullable since Auth0 handles auth
-    auth0_user_id = Column(String, unique=True, index=True, nullable=True)
+    hashed_password = Column(String, nullable=True)  # Made nullable since Keycloak handles auth
+    auth_provider_id: Mapped[str] = mapped_column(String, unique=True, index=True)
     role = Column(Enum(UserRole), nullable=False)
-    __table_args__ = (UniqueConstraint('email'), UniqueConstraint('auth0_user_id'),)
+    __table_args__ = (UniqueConstraint('email'), UniqueConstraint('auth_provider_id'),)
     
     def __repr__(self):
         return f"<User(id={self.id}, email={self.email}, role={self.role})>"

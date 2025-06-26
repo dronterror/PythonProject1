@@ -40,10 +40,14 @@ A comprehensive medication logistics platform with unified frontend supporting m
    poetry install
    ```
 
-4. **Create environment file**:
+4. **Create environment files**:
    ```bash
-   cp .env.example .env
-   # Edit .env with your database credentials and secrets
+   # Create backend environment file (see KEYCLOAK_ENVIRONMENT_SETUP.md for templates)
+   cp backend/.env.example backend/.env
+   # Edit backend/.env with your Keycloak and database settings
+   
+   # Optionally create root .env for Keycloak admin credentials
+   # See KEYCLOAK_ENVIRONMENT_SETUP.md for required variables
    ```
 
 ### Local Development
@@ -89,7 +93,7 @@ A comprehensive medication logistics platform with unified frontend supporting m
 
 1. **Add hosts entries** (Windows: edit `C:\Windows\System32\drivers\etc\hosts`):
    ```
-   127.0.0.1 medlog.local api.medlog.local
+   127.0.0.1 medlog.local api.medlog.local keycloak.medlog.local
    ```
 
 2. **Build and run with Docker**:
@@ -104,23 +108,54 @@ A comprehensive medication logistics platform with unified frontend supporting m
 
 4. **Access the application**:
    - Frontend: http://medlog.local (unified interface for all roles)
-   - Backend API: http://api.medlog.local
+   - Backend API: http://api.medlog.local  
+   - Keycloak Admin Console: http://keycloak.medlog.local
    - Traefik Dashboard: http://localhost:8080
+
+### Keycloak Initial Setup (One-Time Task)
+
+After running `docker-compose up` for the first time, you must configure Keycloak.
+
+1. **Access Keycloak:** Navigate to `http://keycloak.medlog.local` and click on "Administration Console".
+2. **Log In:** Use the admin credentials you set in your `.env` file (default: `admin`/`admin`).
+3. **Create a Realm:**
+   - Hover over the "master" realm name in the top-left and click "Create Realm".
+   - **Realm name:** `medlog-realm`. Click "Create".
+4. **Create a Client for Your Frontends:**
+   - In the `medlog-realm`, go to `Clients` and click "Create client".
+   - **Client ID:** `medlog-clients`.
+   - **Valid Redirect URIs:** Add `http://medlog.local/*`, `http://localhost/*`.
+   - Leave other settings as default for now and save.
+5. **Create Roles:**
+   - Go to `Realm Roles` and click "Create role".
+   - Create the following roles: `super-admin`, `pharmacist`, `doctor`, `nurse`.
+6. **Create a Test User:**
+   - Go to `Users` and click "Add user".
+   - Enter an email and toggle "Email verified" to ON. Save.
+   - Go to the "Credentials" tab for the new user and set a password.
+   - Go to the "Role mapping" tab and assign a realm role (e.g., `pharmacist`).
+7. **(Optional but Recommended) Add Roles to Token:**
+   - Go to `Clients` -> `medlog-clients` -> `Client Scopes`.
+   - Click on the `medlog-clients-dedicated` scope.
+   - Go to the "Mappers" tab. Click "Configure a new mapper" -> "User Realm Role".
+   - Give it a name (e.g., "Realm Roles Mapper"), set "Token Claim Name" to `realm_access.roles`, and ensure "Add to access token" is ON. Save.
 
 ## User Flow
 
-1. **Login**: Auth0 authentication for all users
+1. **Login**: Keycloak OIDC authentication for all users
 2. **Role Selection**: Choose your role (Admin, Doctor, Pharmacist, Nurse)
 3. **Ward Selection**: For role-specific users, select your ward context
 4. **Role Interface**: Access the appropriate interface based on your role
 
 ## API Authentication
 
-The backend uses API key authentication. Include the `X-API-Key` header in your requests:
+The backend uses Keycloak OIDC JWT authentication. Include the `Authorization: Bearer <token>` header in your requests:
 
 ```bash
-curl -H "X-API-Key: your-api-key" http://api.localhost/api/drugs
+curl -H "Authorization: Bearer your-jwt-token" http://localhost/api/drugs
 ```
+
+Tokens are obtained from Keycloak after user authentication through the frontend application.
 
 ## Roles and Permissions
 
