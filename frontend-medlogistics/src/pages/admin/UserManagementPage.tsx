@@ -32,7 +32,7 @@ import {
   Delete as DeleteIcon 
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/apiClient';
+import { apiClient } from '@/lib/apiClient';
 
 interface User {
   id: string;
@@ -98,32 +98,42 @@ const UserManagementPage: React.FC = () => {
     data: users = [],
     isLoading: usersLoading,
     error: usersError,
-  } = useQuery({
+  } = useQuery<User[], Error>({
     queryKey: ['users'],
-    queryFn: () => api.get<User[]>('/users'),
+    queryFn: async () => {
+      const response = await apiClient.get<User[]>('/users');
+      return response.data;
+    },
   });
 
   // Fetch wards for permission assignment
   const {
     data: wards = [],
-  } = useQuery({
+  } = useQuery<Ward[], Error>({
     queryKey: ['wards-all'],
-    queryFn: () => api.get<Ward[]>('/wards/all'),
+    queryFn: async () => {
+      const response = await apiClient.get<Ward[]>('/wards/all');
+      return response.data;
+    },
   });
 
   // Fetch user permissions
   const {
     data: userPermissions = [],
     isLoading: permissionsLoading,
-  } = useQuery({
+  } = useQuery<UserPermission[], Error>({
     queryKey: ['users', selectedUser?.id, 'permissions'],
-    queryFn: () => api.get<UserPermission[]>(`/users/${selectedUser?.id}/permissions`),
+    queryFn: async () => {
+      if (!selectedUser?.id) return [];
+      const response = await apiClient.get<UserPermission[]>(`/users/${selectedUser.id}/permissions`);
+      return response.data;
+    },
     enabled: !!selectedUser?.id,
   });
 
   // Invite user mutation
-  const inviteUserMutation = useMutation({
-    mutationFn: (data: InviteUserForm) => api.post('/users/invite', data),
+  const inviteUserMutation = useMutation<User, Error, InviteUserForm>({
+    mutationFn: (data) => apiClient.post('/users/invite', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       setInviteDialogOpen(false);
@@ -132,9 +142,9 @@ const UserManagementPage: React.FC = () => {
   });
 
   // Add permission mutation
-  const addPermissionMutation = useMutation({
-    mutationFn: (data: AddPermissionForm) =>
-      api.post(`/users/${selectedUser?.id}/permissions`, data),
+  const addPermissionMutation = useMutation<UserPermission, Error, AddPermissionForm>({
+    mutationFn: (data) =>
+      apiClient.post(`/users/${selectedUser?.id}/permissions`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users', selectedUser?.id, 'permissions'] });
       setPermissionForm({ wardId: '', role: 'nurse' });
@@ -142,9 +152,9 @@ const UserManagementPage: React.FC = () => {
   });
 
   // Remove permission mutation
-  const removePermissionMutation = useMutation({
-    mutationFn: (permissionId: string) =>
-      api.delete(`/users/${selectedUser?.id}/permissions/${permissionId}`),
+  const removePermissionMutation = useMutation<void, Error, string>({
+    mutationFn: (permissionId) =>
+      apiClient.delete(`/users/${selectedUser?.id}/permissions/${permissionId}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users', selectedUser?.id, 'permissions'] });
     },

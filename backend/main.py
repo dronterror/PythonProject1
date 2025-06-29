@@ -1,8 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import logging
-from database import engine, Base
+from database import engine, Base, SessionLocal
 from routers import drugs, orders, administrations, admin
+from routers.users import router as users_router
 from config import settings
 
 logging.basicConfig(level=getattr(logging, settings.log_level.upper()))
@@ -18,11 +19,11 @@ app = FastAPI(
 
 # Define the origins list as per the plan
 origins = [
-    "https://admin.medlog.local",
-    "https://doctor.medlog.local",
-    "https://pharmacist.medlog.local",
-    # Add your local development URLs if you ever run the frontend outside of Docker
-    "http://localhost:5173",
+    "http://localhost",
+    "https://localhost",
+    "http://medlog.local",
+    "https://medlog.local",
+    "http://localhost:5173", # Local dev
 ]
 
 # CORS: Configure for unified frontend and Keycloak
@@ -35,10 +36,11 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(drugs.router, prefix="/api")
-app.include_router(orders.router, prefix="/api")
-app.include_router(administrations.router, prefix="/api")
-app.include_router(admin.router, prefix="/api")  # Admin endpoints
+app.include_router(drugs.router, prefix="/api/v1")
+app.include_router(orders.router, prefix="/api/v1")
+app.include_router(administrations.router, prefix="/api/v1")
+app.include_router(admin.router, prefix="/api/v1")
+app.include_router(users_router, prefix="/api/v1")
 
 @app.get("/")
 async def root():
@@ -46,4 +48,16 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy"} 
+    return {"status": "healthy"}
+
+@app.on_event("startup")
+async def startup():
+    """Startup event."""
+    logger = logging.getLogger(__name__)
+    logger.info("Application started successfully")
+
+@app.on_event("shutdown")
+async def shutdown():
+    """Shutdown event."""
+    logger = logging.getLogger(__name__)
+    logger.info("Application shutdown complete") 

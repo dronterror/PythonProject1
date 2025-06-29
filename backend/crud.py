@@ -71,6 +71,12 @@ def create_ward(db: Session, ward: schemas.WardCreate):
 def get_wards_by_hospital(db: Session, hospital_id: uuid.UUID):
     return db.query(models.Ward).filter(models.Ward.hospital_id == hospital_id).all()
 
+def get_wards_for_user(db: Session, user_id: uuid.UUID):
+    """
+    Retrieves all wards that a user has permission to access.
+    """
+    return db.query(models.Ward).join(models.UserWardPermission).filter(models.UserWardPermission.user_id == user_id).all()
+
 def get_ward(db: Session, ward_id: uuid.UUID):
     return db.query(models.Ward).filter(models.Ward.id == ward_id).first()
 

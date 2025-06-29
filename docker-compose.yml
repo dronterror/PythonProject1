@@ -31,7 +31,7 @@ services:
       - KC_HOSTNAME_STRICT=false
       - KC_HOSTNAME_STRICT_HTTPS=false
       - KC_PROXY_ADDRESS_FORWARDING=true
-      - KC_HTTP_CORS_ORIGINS=http://medlog.local,http://localhost,http://localhost:3000,http://localhost:5173,http://localhost:80,http://localhost:8081
+      - KC_HTTP_CORS_ORIGINS=http://medlog.local,http://localhost,http://localhost:3000,http://localhost:5173,http://localhost:80,http://localhost:8081,https://localhost,https://medlog.local
       - KC_LOG_LEVEL=DEBUG
       - KC_PROXY=edge
       - KC_HEALTH_ENABLED=true
@@ -39,6 +39,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    volumes:
+      - keycloak_data:/opt/keycloak/data
     expose:
       - "8080"
     labels:
@@ -64,6 +66,7 @@ services:
       - medlog-net
     ports:
       - "8081:8080"
+    restart: "no"
 
   backend:
     build:
@@ -74,11 +77,23 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    extra_hosts:
+      - "keycloak.medlog.local:172.20.0.3"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.backend.rule=PathPrefix(`/api`)"
+      # Link all routers to a single service definition
+      - "traefik.http.services.backend-service.loadbalancer.server.port=8000"
+
+      # HTTP router
+      - "traefik.http.routers.backend.rule=(Host(`localhost`) || Host(`medlog.local`)) && PathPrefix(`/api`)"
       - "traefik.http.routers.backend.entrypoints=web"
-      - "traefik.http.services.backend.loadbalancer.server.port=8000"
+      - "traefik.http.routers.backend.service=backend-service"
+
+      # HTTPS router
+      - "traefik.http.routers.backend-secure.rule=(Host(`localhost`) || Host(`medlog.local`)) && PathPrefix(`/api`)"
+      - "traefik.http.routers.backend-secure.entrypoints=websecure"
+      - "traefik.http.routers.backend-secure.tls=true"
+      - "traefik.http.routers.backend-secure.service=backend-service"
     networks:
       - medlog-net
     environment:
@@ -92,16 +107,24 @@ services:
     environment:
       - NODE_ENV=development
       - VITE_KEYCLOAK_URL=https://keycloak.medlog.local
+      - VITE_API_BASE_URL=/api/v1
     labels:
       - "traefik.enable=true"
-      # HTTP router
+      # Link all routers to a single service definition
+      - "traefik.http.services.frontend-service.loadbalancer.server.port=80"
+      
+      # HTTP router - Lower priority to act as a catch-all
       - "traefik.http.routers.frontend.rule=Host(`localhost`) || Host(`medlog.local`)"
       - "traefik.http.routers.frontend.entrypoints=web"
-      - "traefik.http.services.frontend.loadbalancer.server.port=80"
-      # HTTPS router (for future SSL)
+      - "traefik.http.routers.frontend.priority=1"
+      - "traefik.http.routers.frontend.service=frontend-service"
+
+      # HTTPS router - Lower priority to act as a catch-all
       - "traefik.http.routers.frontend-secure.rule=Host(`localhost`) || Host(`medlog.local`)"
       - "traefik.http.routers.frontend-secure.entrypoints=websecure"
       - "traefik.http.routers.frontend-secure.tls=true"
+      - "traefik.http.routers.frontend-secure.priority=1"
+      - "traefik.http.routers.frontend-secure.service=frontend-service"
     networks:
       - medlog-net
     depends_on:
@@ -160,6 +183,7 @@ services:
 
 volumes:
   pgdata:
+  keycloak_data:
 
 networks:
   medlog-net:

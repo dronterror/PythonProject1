@@ -11,23 +11,25 @@ from config import settings
 logger = logging.getLogger(__name__)
 
 @lru_cache(maxsize=1)
-def get_keycloak_public_key() -> str:
+def get_keycloak_public_key() -> dict:
     """
     Fetch the public key from Keycloak JWKS endpoint.
     Cached to avoid repeated requests to Keycloak.
     """
     try:
-        response = requests.get(settings.keycloak_jwks_url, timeout=10)
+        # Use the configured JWKS URL from settings
+        jwks_url = settings.keycloak_jwks_url
+        
+        # For development, we may need to skip SSL verification
+        verify_ssl = not settings.debug
+        response = requests.get(jwks_url, timeout=10, verify=verify_ssl)
         response.raise_for_status()
         jwks = response.json()
         
-        # Extract the first key (assuming single key setup)
+        # Return the JWKS data instead of a single key
+        # We'll select the right key based on the token's kid later
         if jwks.get("keys"):
-            key_data = jwks["keys"][0]
-            # Convert JWK to PEM format
-            from jwt.algorithms import RSAAlgorithm
-            public_key = RSAAlgorithm.from_jwk(key_data)
-            return public_key
+            return jwks
         else:
             raise Exception("No keys found in JWKS response")
             
@@ -48,15 +50,10 @@ def get_keycloak_public_key() -> str:
 def get_keycloak_issuer() -> str:
     """
     Get the issuer from Keycloak OpenID Connect configuration.
+    Since the well-known endpoint has issues, use the default issuer.
     """
-    try:
-        response = requests.get(settings.keycloak_openid_connect_url, timeout=10)
-        response.raise_for_status()
-        oidc_config = response.json()
-        return oidc_config.get("issuer", settings.keycloak_issuer)
-    except requests.RequestException as e:
-        logger.warning(f"Failed to fetch OIDC config, using default issuer: {e}")
-        return settings.keycloak_issuer
+    # Use the default issuer since OIDC discovery endpoint is not working
+    return settings.keycloak_issuer
 
 def verify_token(token: str) -> Dict[str, Any]:
     """
@@ -78,27 +75,57 @@ def verify_token(token: str) -> Dict[str, Any]:
         )
     
     try:
-        # Get the public key for verification
-        public_key = get_keycloak_public_key()
+        # Get the JWKS data
+        jwks = get_keycloak_public_key()
+        
+        # Get the token header to find the key ID
+        header = jwt.get_unverified_header(token)
+        kid = header.get("kid")
+        
+        # Find the matching key in JWKS
+        public_key = None
+        for key_data in jwks.get("keys", []):
+            if key_data.get("kid") == kid:
+                # Convert JWK to PEM format
+                from jwt.algorithms import RSAAlgorithm
+                public_key = RSAAlgorithm.from_jwk(key_data)
+                break
+        
+        if not public_key:
+            logger.warning(f"No matching key found for kid: {kid}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token key"
+            )
         
         # Get the issuer
         issuer = get_keycloak_issuer()
         
         # Verify and decode the token
+        # Note: Keycloak sets aud to "account" by default, so we skip aud verification
+        # and validate the client ID via the azp (authorized party) claim instead
         payload = jwt.decode(
             token,
             public_key,
             algorithms=["RS256"],
-            audience=settings.keycloak_client_id,
             issuer=issuer,
             options={
                 "verify_signature": True,
                 "verify_exp": True,
                 "verify_iat": True,
-                "verify_aud": True,
+                "verify_aud": False,  # Skip audience verification
                 "verify_iss": True
             }
         )
+        
+        # Manually verify the authorized party (client ID)
+        azp = payload.get("azp")
+        if azp != settings.keycloak_client_id:
+            logger.warning(f"Invalid authorized party: {azp}, expected: {settings.keycloak_client_id}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid client"
+            )
         
         return payload
         

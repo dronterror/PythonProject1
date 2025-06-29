@@ -22,12 +22,12 @@ import {
   Person as PersonIcon,
   Logout as LogoutIcon,
 } from '@mui/icons-material';
-import { useAuth0 } from '@auth0/auth0-react';
 import { styled } from '@mui/material/styles';
 import { useQuery } from '@tanstack/react-query';
-import { useAppStore } from '@/stores/useAppStore';
-import { api } from '@/lib/apiClient';
-// import type { Ward } from '@/types';
+import { useAppStore, useUser } from '@/stores/useAppStore';
+import { apiClient } from '@/lib/apiClient';
+import { Ward } from '@/types';
+import { useKeycloakAuth } from '@/components/auth/KeycloakAuthContext';
 
 const StyledContainer = styled(Container)(({ theme }) => ({
   minHeight: '100vh',
@@ -55,40 +55,36 @@ const WardCard = styled(Card)(({ theme }) => ({
 
 const WardSelectorPage: React.FC = () => {
   const navigate = useNavigate();
-  const { user, logout } = useAuth0();
-  const { setActiveWard, userProfile } = useAppStore();
+  const { logout } = useKeycloakAuth();
+  const { setActiveWard } = useAppStore();
+  const user = useUser();
 
-  // Fetch available wards
   const {
     data: wards,
     isLoading,
     error,
     refetch,
-  } = useQuery({
+  } = useQuery<Ward[], Error>({
     queryKey: ['wards'],
-    queryFn: () => api.getWards(),
-    retry: 3,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    queryFn: async () => {
+      const response = await apiClient.get<Ward[]>('/users/me/wards');
+      if (!Array.isArray(response.data)) {
+        console.error("API Error: /users/me/wards did not return an array.", response.data);
+        throw new Error("Invalid data format from server. Expected an array of wards.");
+      }
+      return response.data;
+    },
+    retry: 1,
+    staleTime: 5 * 60 * 1000,
   });
 
-  const handleWardSelection = async (ward: any) => {
-    try {
-      // Set the active ward in the store
-      setActiveWard(ward.id, ward.name);
-      
-      // Navigate to the main dashboard
-      navigate('/app/dashboard');
-    } catch (error) {
-      console.error('Error selecting ward:', error);
-    }
+  const handleWardSelection = (ward: Ward) => {
+    setActiveWard(ward);
+    navigate('/app/dashboard');
   };
 
   const handleLogout = () => {
-    logout({
-      logoutParams: {
-        returnTo: window.location.origin,
-      },
-    });
+    logout();
   };
 
   if (isLoading) {
@@ -109,8 +105,8 @@ const WardSelectorPage: React.FC = () => {
   if (error) {
     return (
       <StyledContainer maxWidth="sm">
-        <Alert 
-          severity="error" 
+        <Alert
+          severity="error"
           sx={{ mb: 2 }}
           action={
             <IconButton color="inherit" size="small" onClick={() => refetch()}>
@@ -144,10 +140,10 @@ const WardSelectorPage: React.FC = () => {
               <PersonIcon sx={{ mr: 2, fontSize: 40 }} />
               <Box>
                 <Typography variant="h5" component="h1">
-                  Welcome, {user?.name || userProfile?.name}
+                  Welcome, {user?.name}
                 </Typography>
                 <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                  {userProfile?.role || 'Nurse'}
+                  {user?.roles.join(', ')}
                 </Typography>
               </Box>
             </Box>
@@ -161,7 +157,7 @@ const WardSelectorPage: React.FC = () => {
           Available Wards
         </Typography>
 
-        {wards && Array.isArray(wards) && wards.length > 0 ? (
+        {wards && wards.length > 0 ? (
           <List sx={{ p: 0 }}>
             {wards.map((ward) => (
               <WardCard key={ward.id}>
@@ -175,16 +171,7 @@ const WardSelectorPage: React.FC = () => {
                     </ListItemIcon>
                     <ListItemText
                       primary={ward.name}
-                      secondary={
-                        <Box>
-                          <Typography variant="body2" color="textSecondary">
-                            {ward.description}
-                          </Typography>
-                          <Typography variant="caption" color="textSecondary">
-                            Capacity: {ward.currentOccupancy}/{ward.capacity} patients
-                          </Typography>
-                        </Box>
-                      }
+                      secondary={`Hospital: ${ward.hospital.name}`}
                     />
                   </ListItemButton>
                 </ListItem>

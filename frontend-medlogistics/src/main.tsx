@@ -1,35 +1,27 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { BrowserRouter } from 'react-router-dom';
+import { HashRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
+import { KeycloakAuthProvider } from '@/components/auth/KeycloakAuthContext';
 import App from './App';
-import AuthWrapper from './components/auth/AuthWrapper';
 import { theme } from './theme';
 
-// Initialize React Query client
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 1,
-      refetchOnWindowFocus: false,
-      staleTime: 5 * 60 * 1000, // 5 minutes
-    },
-  },
-});
+// Create a client
+const queryClient = new QueryClient();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <BrowserRouter>
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider theme={theme}>
-          <CssBaseline />
-          <AuthWrapper>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <KeycloakAuthProvider>
+          <HashRouter>
             <App />
-          </AuthWrapper>
-        </ThemeProvider>
-      </QueryClientProvider>
-    </BrowserRouter>
+          </HashRouter>
+        </KeycloakAuthProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
   </React.StrictMode>
 ); 

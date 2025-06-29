@@ -3,9 +3,10 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from database import SessionLocal
 from models import User, UserRole
-from security import verify_token, get_keycloak_user_id, extract_user_roles
+from security import verify_token, get_keycloak_user_id, extract_user_roles, get_user_email
 import logging
 from typing import Dict, Any
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,7 @@ def get_current_user(
 ) -> User:
     """
     Get the current user from Keycloak JWT token.
+    Auto-creates user in database if they don't exist but have valid token.
     
     Args:
         credentials: JWT token from the Authorization header
@@ -33,22 +35,49 @@ def get_current_user(
         User object from the database
         
     Raises:
-        HTTPException: If token is invalid or user not found
+        HTTPException: If token is invalid
     """
     # Verify the JWT token
     payload = verify_token(credentials.credentials)
     
-    # Extract Keycloak user ID
+    # Extract Keycloak user ID and email
     keycloak_user_id = get_keycloak_user_id(payload)
+    user_email = get_user_email(payload) or "unknown@example.com"
     
     # Find the user in our database
     user = db.query(User).filter(User.auth_provider_id == keycloak_user_id).first()
+    
     if not user:
-        logger.warning(f"User with Keycloak ID {keycloak_user_id} not found in database")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, 
-            detail="User not found in system"
+        # Auto-create user on first login
+        logger.info(f"Auto-creating user with Keycloak ID {keycloak_user_id} and email {user_email}")
+        
+        # Extract roles from Keycloak token
+        token_roles = extract_user_roles(payload)
+        
+        # Determine user role (default to 'nurse' if no specific role found)
+        user_role = UserRole.nurse  # Default role
+        if "super-admin" in token_roles:
+            user_role = UserRole.super_admin
+        elif "pharmacist" in token_roles:
+            user_role = UserRole.pharmacist
+        elif "doctor" in token_roles:
+            user_role = UserRole.doctor
+        elif "nurse" in token_roles:
+            user_role = UserRole.nurse
+        
+        # Create new user
+        user = User(
+            id=uuid.uuid4(),
+            email=user_email,
+            role=user_role,
+            auth_provider_id=keycloak_user_id
         )
+        
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        
+        logger.info(f"Successfully created user {user.email} with role {user.role.value}")
     
     return user
 

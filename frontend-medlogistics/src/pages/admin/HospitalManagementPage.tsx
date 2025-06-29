@@ -18,7 +18,7 @@ import {
 import { DataGrid, GridColDef, GridRowParams } from '@mui/x-data-grid';
 import { Add as AddIcon, Edit as EditIcon, Visibility as ViewIcon } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/apiClient';
+import { apiClient } from '@/lib/apiClient';
 
 interface Hospital {
   id: string;
@@ -75,7 +75,10 @@ const HospitalManagementPage: React.FC = () => {
     error: hospitalsError,
   } = useQuery({
     queryKey: ['hospitals'],
-    queryFn: () => api.get<Hospital[]>('/hospitals'),
+    queryFn: async () => {
+      const response = await apiClient.get<Hospital[]>('/hospitals');
+      return response.data;
+    },
   });
 
   // Fetch wards for selected hospital
@@ -84,13 +87,17 @@ const HospitalManagementPage: React.FC = () => {
     isLoading: wardsLoading,
   } = useQuery({
     queryKey: ['hospitals', selectedHospital?.id, 'wards'],
-    queryFn: () => api.get<Ward[]>(`/hospitals/${selectedHospital?.id}/wards`),
+    queryFn: async () => {
+      if (!selectedHospital?.id) return [];
+      const response = await apiClient.get<Ward[]>(`/hospitals/${selectedHospital.id}/wards`);
+      return response.data;
+    },
     enabled: !!selectedHospital?.id,
   });
 
   // Create hospital mutation
   const createHospitalMutation = useMutation({
-    mutationFn: (data: CreateHospitalForm) => api.post('/hospitals', data),
+    mutationFn: (data: CreateHospitalForm) => apiClient.post('/hospitals', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['hospitals'] });
       setHospitalDialogOpen(false);
@@ -101,7 +108,7 @@ const HospitalManagementPage: React.FC = () => {
   // Create ward mutation
   const createWardMutation = useMutation({
     mutationFn: (data: CreateWardForm) =>
-      api.post(`/hospitals/${selectedHospital?.id}/wards`, data),
+      apiClient.post(`/hospitals/${selectedHospital?.id}/wards`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['hospitals', selectedHospital?.id, 'wards'] });
       setWardDialogOpen(false);

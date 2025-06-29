@@ -1,10 +1,14 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
-// Keycloak Configuration - FORCE localhost to avoid HTTPS issues
+// Keycloak Configuration
 const getKeycloakUrl = () => {
-  // Always use localhost:8081 to avoid HTTPS redirect issues
-  console.log('VITE_KEYCLOAK_URL env var:', import.meta.env.VITE_KEYCLOAK_URL);
-  return 'http://localhost:8081';
+  const url = import.meta.env.VITE_KEYCLOAK_URL;
+  if (!url) {
+    console.error("VITE_KEYCLOAK_URL is not set. Please check your .env file.");
+    // Fallback for safety, but this should be configured.
+    return 'http://localhost:8081';
+  }
+  return url;
 };
 
 const KEYCLOAK_CONFIG = {

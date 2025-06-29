@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql://valmed:valmedpass@localhost:5432/valmed"
     
     # Keycloak OIDC Configuration
-    keycloak_server_url: str = "http://keycloak.medlog.local"
+    keycloak_server_url: str = "http://keycloak:8080"  # Use Docker service name for internal communication
     keycloak_realm: str = "medlog-realm"
     keycloak_client_id: str = "medlog-clients"
     
@@ -45,7 +45,8 @@ class Settings(BaseSettings):
     @property
     def keycloak_issuer(self) -> str:
         """Construct the issuer URL for Keycloak."""
-        return f"{self.keycloak_server_url}/realms/{self.keycloak_realm}"
+        # Use the external URL for issuer validation since that's what tokens contain
+        return f"https://keycloak.medlog.local/realms/{self.keycloak_realm}"
 
 
 # Create a global settings instance

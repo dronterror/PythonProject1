@@ -40,10 +40,10 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
         runtimeCaching: [
           {
-            urlPattern: /^\/api\/.*/i,
+            urlPattern: /^\/api\/v1\/.*/i,
             handler: 'StaleWhileRevalidate',
             options: {
-              cacheName: 'medlog-api-cache',
+              cacheName: 'medlog-api-v1-cache',
               expiration: {
                 maxEntries: 100,
                 maxAgeSeconds: 60 * 60 * 24 // 24 hours

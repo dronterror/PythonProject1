@@ -4,7 +4,7 @@ export interface UserProfile {
   email: string;
   name: string;
   picture?: string;
-  role: 'nurse' | 'doctor' | 'pharmacist' | 'admin' | 'super_admin';
+  roles: string[];
   nurseId?: string;
   permissions?: string[];
 }
@@ -17,6 +17,9 @@ export interface Ward {
   capacity: number;
   currentOccupancy: number;
   isActive: boolean;
+  hospital_id: string;
+  hospital: Hospital;
+  created_at: string;
 }
 
 // Patient Types
@@ -111,4 +114,11 @@ export interface AdministrationForm {
   dosageGiven: number;
   notes?: string;
   administrationTime: Date;
+}
+
+export type Hospital = {
+  id: string;
+  name: string;
+  address?: string;
+  created_at: string;
 } 
