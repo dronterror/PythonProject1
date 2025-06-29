@@ -36,18 +36,20 @@ class OrderRepository:
     def create(self, order_data: Dict[str, Any], doctor_id: uuid.UUID) -> MedicationOrder:
         """
         Create a new medication order.
+        CRITICAL: Uses explicit transaction boundary for data integrity.
         """
-        db_order = MedicationOrder(
-            **order_data,
-            doctor_id=doctor_id,
-            status=OrderStatus.active
-        )
-        self.db.add(db_order)
-        self.db.commit()
-        self.db.refresh(db_order)
-        
-        # Return with relationships loaded
-        return self.get_by_id(db_order.id)
+        with self.db.begin():
+            db_order = MedicationOrder(
+                **order_data,
+                doctor_id=doctor_id,
+                status=OrderStatus.active
+            )
+            self.db.add(db_order)
+            self.db.flush()
+            self.db.refresh(db_order)
+            
+            # Return with relationships loaded
+            return self.get_by_id(db_order.id)
     
     def list_active(self, skip: int = 0, limit: int = 100) -> List[MedicationOrder]:
         """
@@ -144,25 +146,28 @@ class OrderRepository:
     def update_status(self, order_id: uuid.UUID, status: OrderStatus) -> Optional[MedicationOrder]:
         """
         Update the status of an order.
+        CRITICAL: Uses explicit transaction boundary for data integrity.
         """
-        order = self.db.query(MedicationOrder).filter(MedicationOrder.id == order_id).first()
-        if order:
-            order.status = status
-            self.db.commit()
-            self.db.refresh(order)
-            return self.get_by_id(order_id)  # Return with relationships loaded
-        return None
+        with self.db.begin():
+            order = self.db.query(MedicationOrder).filter(MedicationOrder.id == order_id).first()
+            if order:
+                order.status = status
+                self.db.flush()
+                self.db.refresh(order)
+                return self.get_by_id(order_id)  # Return with relationships loaded
+            return None
     
     def delete(self, order_id: uuid.UUID) -> bool:
         """
         Delete an order (soft delete by setting status to discontinued).
+        CRITICAL: Uses explicit transaction boundary for data integrity.
         """
-        order = self.db.query(MedicationOrder).filter(MedicationOrder.id == order_id).first()
-        if order:
-            order.status = OrderStatus.discontinued
-            self.db.commit()
-            return True
-        return False
+        with self.db.begin():
+            order = self.db.query(MedicationOrder).filter(MedicationOrder.id == order_id).first()
+            if order:
+                order.status = OrderStatus.discontinued
+                return True
+            return False
     
     def count_active_by_drug(self, drug_id: uuid.UUID) -> int:
         """

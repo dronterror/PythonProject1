@@ -23,7 +23,14 @@ engine = create_engine(
     pool_size=20,        # Maintain exactly 20 persistent connections
     max_overflow=10,     # Allow max 10 additional connections under load
     pool_recycle=1800,   # Recycle connections every 30 minutes (prevents stale connections)
-    pool_pre_ping=True,  # Validate connections before use (detect network issues)
+    
+    # CRITICAL: pool_pre_ping validates connections before use by issuing SELECT 1
+    # This prevents the application from attempting to use stale/dead connections
+    # from the pool, which could happen during database restarts, network blips,
+    # or connection timeouts. Without this, the application would fail with
+    # connection errors instead of transparently reconnecting.
+    pool_pre_ping=True,  
+    
     pool_timeout=30,     # Maximum wait time for connection acquisition
     
     # Performance settings for production

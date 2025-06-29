@@ -300,6 +300,80 @@ The recommended archiving strategy provides:
 
 **This is not optional**. This is a prerequisite for production deployment at scale.
 
+## Migration Policy
+
+### Mandatory Reversibility Requirements
+
+**ALL ALEMBIC MIGRATIONS MUST BE FULLY REVERSIBLE**
+
+This is a non-negotiable requirement for production deployment and operational safety. Every migration file must implement both `upgrade()` and `downgrade()` functions that are perfect inverses of each other.
+
+#### Policy Requirements
+
+1. **Complete Implementation**: Every migration must have a fully functional `downgrade()` method that perfectly undoes all changes made by `upgrade()`.
+
+2. **Data Preservation**: Downgrade functions must preserve existing data wherever possible. Use temporary tables or backup strategies for destructive operations.
+
+3. **Testing Mandatory**: Both upgrade and downgrade functions must be tested in isolated environments before deployment.
+
+4. **Documentation**: Complex migrations must include comments explaining the rollback strategy and any data handling considerations.
+
+#### Enforcement Mechanisms
+
+- **Code Review**: All migration files require mandatory review with specific focus on downgrade implementation
+- **CI/CD Pipeline**: Automated testing must verify both upgrade and downgrade paths
+- **Deployment Protocol**: Production deployments must demonstrate successful rollback capability
+
+#### Critical Justification
+
+**Reversible migrations are the foundation of safe, automated deployments.** Without guaranteed rollback capability:
+- Failed deployments become manual recovery operations
+- Production incidents extend from minutes to hours 
+- Database schema changes become high-risk, infrequent events
+- DevOps confidence in deployment automation is undermined
+
+**Example of Proper Reversible Migration:**
+
+```python
+def upgrade():
+    # Add new column with default
+    op.add_column('medication_orders', 
+                  sa.Column('priority_level', sa.String(20), 
+                           nullable=False, server_default='normal'))
+
+def downgrade():
+    # Remove the column completely
+    op.drop_column('medication_orders', 'priority_level')
+```
+
+**Example of Complex Reversible Migration with Data Handling:**
+
+```python
+def upgrade():
+    # Create temporary backup table
+    op.create_table('medication_orders_backup',
+                   sa.Column('id', sa.UUID),
+                   sa.Column('old_status', sa.String))
+    
+    # Backup existing data
+    op.execute("INSERT INTO medication_orders_backup SELECT id, status FROM medication_orders")
+    
+    # Modify schema
+    op.alter_column('medication_orders', 'status', type_=sa.Enum(OrderStatus))
+
+def downgrade():
+    # Restore from backup
+    op.execute("UPDATE medication_orders SET status = b.old_status FROM medication_orders_backup b WHERE medication_orders.id = b.id")
+    
+    # Drop backup table
+    op.drop_table('medication_orders_backup')
+    
+    # Revert column type
+    op.alter_column('medication_orders', 'status', type_=sa.String)
+```
+
+This policy ensures that every database change can be safely reverted, maintaining the system's operational resilience and enabling confident, frequent deployments.
+
 ---
 
 *This document should be reviewed and updated quarterly as data volume patterns become established in production.* 

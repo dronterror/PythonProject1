@@ -37,25 +37,29 @@ class DrugRepository:
     def create(self, drug_data: Dict[str, Any]) -> Drug:
         """
         Create a new drug.
+        CRITICAL: Uses explicit transaction boundary for data integrity.
         """
-        db_drug = Drug(**drug_data)
-        self.db.add(db_drug)
-        self.db.commit()
-        self.db.refresh(db_drug)
-        return db_drug
+        with self.db.begin():
+            db_drug = Drug(**drug_data)
+            self.db.add(db_drug)
+            self.db.flush()  # Flush to get the ID without committing
+            self.db.refresh(db_drug)
+            return db_drug
     
     def update(self, drug_id: uuid.UUID, update_data: Dict[str, Any]) -> Optional[Drug]:
         """
         Update a drug's information.
+        CRITICAL: Uses explicit transaction boundary for data integrity.
         """
-        drug = self.db.query(Drug).filter(Drug.id == drug_id).first()
-        if drug:
-            for field, value in update_data.items():
-                if hasattr(drug, field):
-                    setattr(drug, field, value)
-            self.db.commit()
-            self.db.refresh(drug)
-        return drug
+        with self.db.begin():
+            drug = self.db.query(Drug).filter(Drug.id == drug_id).first()
+            if drug:
+                for field, value in update_data.items():
+                    if hasattr(drug, field):
+                        setattr(drug, field, value)
+                self.db.flush()
+                self.db.refresh(drug)
+            return drug
     
     def list_all(self, skip: int = 0, limit: int = 100) -> List[Drug]:
         """
@@ -180,52 +184,59 @@ class DrugRepository:
     def update_stock(self, drug_id: uuid.UUID, new_stock: int) -> Optional[Drug]:
         """
         Update drug stock level.
+        CRITICAL: Uses explicit transaction boundary for inventory integrity.
         """
-        drug = self.db.query(Drug).filter(Drug.id == drug_id).first()
-        if drug:
-            drug.current_stock = new_stock
-            self.db.commit()
-            self.db.refresh(drug)
-        return drug
+        with self.db.begin():
+            drug = self.db.query(Drug).filter(Drug.id == drug_id).first()
+            if drug:
+                drug.current_stock = new_stock
+                self.db.flush()
+                self.db.refresh(drug)
+            return drug
     
     def decrement_stock(self, drug_id: uuid.UUID, quantity: int) -> Optional[Drug]:
         """
         Decrement drug stock by specified quantity.
         Returns None if insufficient stock.
+        CRITICAL: Uses explicit transaction boundary to prevent stock inconsistencies.
         """
-        drug = self.db.query(Drug).filter(Drug.id == drug_id).first()
-        if drug and drug.current_stock >= quantity:
-            drug.current_stock -= quantity
-            self.db.commit()
-            self.db.refresh(drug)
-            return drug
-        return None
+        with self.db.begin():
+            drug = self.db.query(Drug).filter(Drug.id == drug_id).first()
+            if drug and drug.current_stock >= quantity:
+                drug.current_stock -= quantity
+                self.db.flush()
+                self.db.refresh(drug)
+                return drug
+            return None
     
     def delete(self, drug_id: uuid.UUID) -> bool:
         """
         Delete a drug.
+        CRITICAL: Uses explicit transaction boundary for data integrity.
         """
-        drug = self.db.query(Drug).filter(Drug.id == drug_id).first()
-        if drug:
-            self.db.delete(drug)
-            self.db.commit()
-            return True
-        return False
+        with self.db.begin():
+            drug = self.db.query(Drug).filter(Drug.id == drug_id).first()
+            if drug:
+                self.db.delete(drug)
+                return True
+            return False
     
     # Drug Transfer methods
     
     def create_transfer(self, transfer_data: Dict[str, Any], pharmacist_id: uuid.UUID) -> DrugTransfer:
         """
         Create a new drug transfer record.
+        CRITICAL: Uses explicit transaction boundary for data integrity.
         """
-        db_transfer = DrugTransfer(
-            **transfer_data,
-            pharmacist_id=pharmacist_id
-        )
-        self.db.add(db_transfer)
-        self.db.commit()
-        self.db.refresh(db_transfer)
-        return db_transfer
+        with self.db.begin():
+            db_transfer = DrugTransfer(
+                **transfer_data,
+                pharmacist_id=pharmacist_id
+            )
+            self.db.add(db_transfer)
+            self.db.flush()
+            self.db.refresh(db_transfer)
+            return db_transfer
     
     def list_transfers(self, skip: int = 0, limit: int = 100) -> List[DrugTransfer]:
         """
