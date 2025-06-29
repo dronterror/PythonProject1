@@ -137,6 +137,22 @@ services:
     expose:
       - "80"
 
+  redis:
+    image: redis:alpine
+    container_name: medlog_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - medlog-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   traefik:
     image: traefik:v2.10
     container_name: medlog_traefik
@@ -188,6 +204,7 @@ services:
 volumes:
   pgdata:
   keycloak_data:
+  redis_data:
 
 networks:
   medlog-net:

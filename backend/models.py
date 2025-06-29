@@ -77,10 +77,10 @@ class Drug(Base):
     """Drug inventory for medication logistics"""
     __tablename__ = "drugs"
     id = Column(UUID(as_uuid=True), primary_key=True, index=True, default=uuid.uuid4)
-    name = Column(String, nullable=False)
+    name = Column(String, nullable=False, index=True)
     form = Column(String, nullable=False)  # e.g., "Tablet", "Ampoule"
     strength = Column(String, nullable=False)  # e.g., "500mg"
-    current_stock = Column(Integer, default=0)
+    current_stock = Column(Integer, default=0, index=True)
     low_stock_threshold = Column(Integer, default=10)
     __table_args__ = (UniqueConstraint('name', 'form', 'strength'),)
     
@@ -92,11 +92,11 @@ class DrugTransfer(Base):
     __tablename__ = "drug_transfers"
     id = Column(UUID(as_uuid=True), primary_key=True, index=True, default=uuid.uuid4)
     drug_id = Column(UUID(as_uuid=True), ForeignKey("drugs.id"), nullable=False, index=True)
-    source_ward = Column(String, nullable=False)
-    destination_ward = Column(String, nullable=False)
+    source_ward = Column(String, nullable=False, index=True)
+    destination_ward = Column(String, nullable=False, index=True)
     quantity = Column(Integer, nullable=False)
     pharmacist_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
-    transfer_date = Column(DateTime, default=datetime.utcnow, nullable=False)
+    transfer_date = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
     
     # Relationships
     drug = relationship("Drug")
@@ -109,13 +109,13 @@ class MedicationOrder(Base):
     """Medication orders (prescriptions) for the logistics system"""
     __tablename__ = "medication_orders"
     id = Column(UUID(as_uuid=True), primary_key=True, index=True, default=uuid.uuid4)
-    patient_name = Column(String, nullable=False)
+    patient_name = Column(String, nullable=False, index=True)
     drug_id = Column(UUID(as_uuid=True), ForeignKey("drugs.id"), nullable=False, index=True)
     dosage = Column(Integer, nullable=False)  # Now integer for decrement logic
     schedule = Column(String, nullable=False)
     status = Column(Enum(OrderStatus), nullable=False, default=OrderStatus.active, index=True)
     doctor_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
     
     # Relationships
     drug = relationship("Drug")
@@ -131,7 +131,7 @@ class MedicationAdministration(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, index=True, default=uuid.uuid4)
     order_id = Column(UUID(as_uuid=True), ForeignKey("medication_orders.id"), nullable=False, index=True)
     nurse_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
-    administration_time = Column(TIMESTAMP, server_default=func.now(), nullable=False)
+    administration_time = Column(TIMESTAMP, server_default=func.now(), nullable=False, index=True)
     
     # Relationships
     order = relationship("MedicationOrder", back_populates="administrations")

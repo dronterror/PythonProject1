@@ -6,34 +6,44 @@ from sqlalchemy.pool import QueuePool
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///medlog.db")
 
-# Optimized engine configuration with connection pooling
+# CRITICAL: Production-grade engine configuration with REPEATABLE READ isolation
+# This isolation level is MANDATORY for inventory systems to prevent:
+# 1. Non-repeatable reads during concurrent stock checks
+# 2. Phantom reads that could cause stock inconsistencies  
+# 3. Lost updates in concurrent order fulfillment scenarios
 engine = create_engine(
     DATABASE_URL,
-    # Connection pooling settings
+    # MANDATORY: Set transaction isolation to REPEATABLE READ
+    # This prevents non-repeatable reads and ensures data consistency
+    # in high-concurrency scenarios with concurrent order processing
+    isolation_level="REPEATABLE_READ",
+    
+    # Production connection pooling - STRICT REQUIREMENTS
     poolclass=QueuePool,
-    pool_size=20,  # Number of connections to maintain
-    max_overflow=30,  # Additional connections that can be created
-    pool_pre_ping=True,  # Validate connections before use
-    pool_recycle=3600,  # Recycle connections after 1 hour
-    pool_timeout=30,  # Timeout for getting connection from pool
+    pool_size=20,        # Maintain exactly 20 persistent connections
+    max_overflow=10,     # Allow max 10 additional connections under load
+    pool_recycle=1800,   # Recycle connections every 30 minutes (prevents stale connections)
+    pool_pre_ping=True,  # Validate connections before use (detect network issues)
+    pool_timeout=30,     # Maximum wait time for connection acquisition
     
-    # Performance settings
-    echo=False,  # Disable SQL logging in production
-    echo_pool=False,  # Disable pool logging
+    # Performance settings for production
+    echo=False,          # NEVER enable SQL logging in production
+    echo_pool=False,     # NEVER enable pool logging in production
     
-    # PostgreSQL specific optimizations (if using PostgreSQL)
+    # Database-specific optimizations
     connect_args={
         "application_name": "valmed_backend",
+        # Set statement timeout to prevent runaway queries
         "options": "-c timezone=utc -c statement_timeout=30000"  # 30 second timeout
     } if "postgresql" in DATABASE_URL else {}
 )
 
-# Optimized session factory
+# Session factory with strict settings for data integrity
 SessionLocal = sessionmaker(
-    autocommit=False,
-    autoflush=False,
+    autocommit=False,    # NEVER use autocommit in transactional systems
+    autoflush=False,     # Manual control over when changes are flushed
     bind=engine,
-    expire_on_commit=False  # Prevent lazy loading issues
+    expire_on_commit=False  # Prevent lazy loading issues after commit
 )
 
 Base = declarative_base()
@@ -41,7 +51,8 @@ Base = declarative_base()
 def get_db():
     """
     Database dependency for FastAPI.
-    Provides a database session and ensures proper cleanup.
+    CRITICAL: Ensures proper session lifecycle management and cleanup.
+    Any exception will trigger session rollback to maintain consistency.
     """
     db = SessionLocal()
     try:
