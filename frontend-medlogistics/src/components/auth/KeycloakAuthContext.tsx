@@ -13,8 +13,8 @@ const getKeycloakUrl = () => {
 
 const KEYCLOAK_CONFIG = {
   url: getKeycloakUrl(),
-  realm: 'medlog-realm',
-  clientId: 'medlog-clients',
+  realm: 'medflow-realm',
+  clientId: 'medflow-backend',
 };
 
 // Add debug logging - FORCE UPDATE

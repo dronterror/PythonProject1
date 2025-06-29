@@ -48,36 +48,47 @@ def get_current_user(
     user = db.query(User).filter(User.auth_provider_id == keycloak_user_id).first()
     
     if not user:
-        # Auto-create user on first login
-        logger.info(f"Auto-creating user with Keycloak ID {keycloak_user_id} and email {user_email}")
-        
-        # Extract roles from Keycloak token
-        token_roles = extract_user_roles(payload)
-        
-        # Determine user role (default to 'nurse' if no specific role found)
-        user_role = UserRole.nurse  # Default role
-        if "super-admin" in token_roles:
-            user_role = UserRole.super_admin
-        elif "pharmacist" in token_roles:
-            user_role = UserRole.pharmacist
-        elif "doctor" in token_roles:
-            user_role = UserRole.doctor
-        elif "nurse" in token_roles:
-            user_role = UserRole.nurse
-        
-        # Create new user
-        user = User(
-            id=uuid.uuid4(),
-            email=user_email,
-            role=user_role,
-            auth_provider_id=keycloak_user_id
-        )
-        
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-        
-        logger.info(f"Successfully created user {user.email} with role {user.role.value}")
+        # User not found by Keycloak ID. Check if a user with this email exists
+        # to link their account on their first login.
+        user = db.query(User).filter(User.email == user_email).first()
+
+        if user:
+            # User exists, so link their account to the Keycloak ID.
+            logger.info(f"Linking existing user {user.email} to Keycloak ID {keycloak_user_id}")
+            user.auth_provider_id = keycloak_user_id
+            db.commit()
+            db.refresh(user)
+        else:
+            # Auto-create user on first login, as they don't exist at all.
+            logger.info(f"Auto-creating user with Keycloak ID {keycloak_user_id} and email {user_email}")
+            
+            # Extract roles from Keycloak token
+            token_roles = extract_user_roles(payload)
+            
+            # Determine user role (default to 'nurse' if no specific role found)
+            user_role = UserRole.nurse  # Default role
+            if "super-admin" in token_roles:
+                user_role = UserRole.super_admin
+            elif "pharmacist" in token_roles:
+                user_role = UserRole.pharmacist
+            elif "doctor" in token_roles:
+                user_role = UserRole.doctor
+            elif "nurse" in token_roles:
+                user_role = UserRole.nurse
+            
+            # Create new user
+            user = User(
+                id=uuid.uuid4(),
+                email=user_email,
+                role=user_role,
+                auth_provider_id=keycloak_user_id
+            )
+            
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+            
+            logger.info(f"Successfully created user {user.email} with role {user.role.value}")
     
     return user
 

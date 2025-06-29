@@ -11,8 +11,8 @@ class Settings(BaseSettings):
     
     # Keycloak OIDC Configuration
     keycloak_server_url: str = "http://keycloak:8080"  # Use Docker service name for internal communication
-    keycloak_realm: str = "medlog-realm"
-    keycloak_client_id: str = "medlog-clients"
+    keycloak_realm: str = "medflow-realm"
+    keycloak_client_id: str = "medflow-backend"
     
     # Application Settings
     app_env: str = "development"
@@ -40,13 +40,14 @@ class Settings(BaseSettings):
     @property
     def keycloak_jwks_url(self) -> str:
         """Construct the JWKS URL for Keycloak."""
-        return f"{self.keycloak_server_url}/realms/{self.keycloak_realm}/protocol/openid-connect/certs"
+        # This MUST use the internal Docker network URL to fetch keys.
+        return f"http://keycloak:8080/realms/{self.keycloak_realm}/protocol/openid-connect/certs"
     
     @property
     def keycloak_issuer(self) -> str:
         """Construct the issuer URL for Keycloak."""
         # Use the external URL for issuer validation since that's what tokens contain
-        return f"https://keycloak.medlog.local/realms/{self.keycloak_realm}"
+        return f"http://keycloak.medlog.local/realms/{self.keycloak_realm}"
 
 
 # Create a global settings instance

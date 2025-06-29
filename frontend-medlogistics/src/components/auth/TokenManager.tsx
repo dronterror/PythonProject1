@@ -24,6 +24,7 @@ const TokenManager: React.FC = () => {
   };
 
   const handleClearToken = () => {
+    localStorage.removeItem('keycloak_token');
     logout();
   };
 

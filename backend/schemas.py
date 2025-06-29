@@ -41,9 +41,10 @@ class UserUpdate(BaseModel):
 
 class UserOut(UserBase):
     """Schema for user responses"""
-    id: uuid.UUID          # User ID
-    auth_provider_id: str     # Keycloak user ID
-    created_at: datetime   # User creation timestamp
+    id: uuid.UUID
+    email: str  # Relaxed from EmailStr to allow .local domains
+    auth_provider_id: Optional[str] = None # Can be null for pre-migration users
+    created_at: Optional[datetime] = None   # Make optional to handle older records
     
     class Config:
         from_attributes = True  # Allow ORM model conversion

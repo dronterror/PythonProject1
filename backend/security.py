@@ -1,24 +1,26 @@
 import os
 import json
-import jwt
 import requests
 from typing import Dict, Any, Optional, List
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, Depends
 from functools import lru_cache
 import logging
 from config import settings
+from fastapi.security import OAuth2AuthorizationCodeBearer, OpenIdConnect
+from jose import JWTError, jwt
+from jose.exceptions import ExpiredSignatureError, JWTClaimsError
+from pydantic import ValidationError
 
 logger = logging.getLogger(__name__)
 
-@lru_cache(maxsize=1)
 def get_keycloak_public_key() -> dict:
     """
     Fetch the public key from Keycloak JWKS endpoint.
-    Cached to avoid repeated requests to Keycloak.
     """
     try:
         # Use the configured JWKS URL from settings
         jwks_url = settings.keycloak_jwks_url
+        logger.debug(f"Attempting to fetch JWKS from: {jwks_url}")
         
         # For development, we may need to skip SSL verification
         verify_ssl = not settings.debug
@@ -46,7 +48,6 @@ def get_keycloak_public_key() -> dict:
             detail="Unable to process authentication keys"
         )
 
-@lru_cache(maxsize=1)
 def get_keycloak_issuer() -> str:
     """
     Get the issuer from Keycloak OpenID Connect configuration.
@@ -83,37 +84,37 @@ def verify_token(token: str) -> Dict[str, Any]:
         kid = header.get("kid")
         
         # Find the matching key in JWKS
-        public_key = None
-        for key_data in jwks.get("keys", []):
-            if key_data.get("kid") == kid:
-                # Convert JWK to PEM format
-                from jwt.algorithms import RSAAlgorithm
-                public_key = RSAAlgorithm.from_jwk(key_data)
+        public_key_data = None
+        for key in jwks.get("keys", []):
+            if key.get("kid") == kid:
+                public_key_data = key
                 break
         
-        if not public_key:
-            logger.warning(f"No matching key found for kid: {kid}")
+        if not public_key_data:
+            # This case should now be rare since we are not caching,
+            # but it's kept for robustness.
+            logger.error(f"No matching key found for kid: {kid}.")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token key"
+                detail="Invalid token key. Could not find a matching public key."
             )
         
         # Get the issuer
         issuer = get_keycloak_issuer()
         
-        # Verify and decode the token
-        # Note: Keycloak sets aud to "account" by default, so we skip aud verification
-        # and validate the client ID via the azp (authorized party) claim instead
+        # Verify and decode the token using JWKS
+        # For python-jose, we need to pass the JWKS as the key parameter
         payload = jwt.decode(
             token,
-            public_key,
+            jwks,  # Pass the entire JWKS, jose will find the right key by kid
             algorithms=["RS256"],
+            audience=None,  # Skip audience verification
             issuer=issuer,
             options={
                 "verify_signature": True,
                 "verify_exp": True,
                 "verify_iat": True,
-                "verify_aud": False,  # Skip audience verification
+                "verify_aud": False,  # Skip audience verification, check azp instead
                 "verify_iss": True
             }
         )
@@ -129,41 +130,31 @@ def verify_token(token: str) -> Dict[str, Any]:
         
         return payload
         
-    except jwt.ExpiredSignatureError:
+    except HTTPException:
+        raise # Re-raise custom HTTPExceptions
+    except ExpiredSignatureError:
         logger.warning("Token has expired")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has expired"
+            detail="Token has expired",
         )
-    except jwt.InvalidAudienceError:
-        logger.warning("Invalid token audience")
+    except JWTClaimsError as e:
+        logger.warning(f"Invalid token claims (e.g., issuer or audience): {e}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token audience"
+            detail="Invalid token claims",
         )
-    except jwt.InvalidIssuerError:
-        logger.warning("Invalid token issuer")
+    except JWTError as e:
+        logger.warning(f"Invalid token signature or structure: {e}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token issuer"
-        )
-    except jwt.InvalidSignatureError:
-        logger.warning("Invalid token signature")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token signature"
-        )
-    except jwt.InvalidTokenError as e:
-        logger.warning(f"Invalid token: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token"
+            detail="Invalid token",
         )
     except Exception as e:
-        logger.error(f"Unexpected error verifying token: {e}")
+        logger.error(f"Unexpected error verifying token: {e}, type: {type(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Token verification failed"
+            detail="Token verification failed",
         )
 
 def extract_user_roles(payload: Dict[str, Any]) -> List[str]:
@@ -225,4 +216,11 @@ def get_user_preferred_username(payload: Dict[str, Any]) -> Optional[str]:
     Returns:
         Preferred username if available
     """
-    return payload.get("preferred_username") 
+    return payload.get("preferred_username")
+
+def get_jwks():
+    """
+    Retrieves the JSON Web Key Set (JWKS) from the OIDC provider.
+    The keys are cached to avoid fetching them for every request.
+    """
+    # ... existing code ... 

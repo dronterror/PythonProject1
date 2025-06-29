@@ -32,10 +32,10 @@ const KeycloakLogin: React.FC = () => {
 
   const handleQuickLogin = (role: 'admin' | 'doctor' | 'nurse' | 'pharmacist') => {
     const credentials = {
-      admin: { username: 'admin', password: 'admin' },
-      doctor: { username: 'doctor', password: 'doctor' },
-      nurse: { username: 'nurse', password: 'nurse' },
-      pharmacist: { username: 'pharmacist', password: 'pharmacist' },
+      admin: { username: 'superadmin', password: 'password' },
+      doctor: { username: 'doctor', password: 'password' },
+      nurse: { username: 'nurse', password: 'password' },
+      pharmacist: { username: 'pharmacist', password: 'password' },
     };
 
     const cred = credentials[role];
