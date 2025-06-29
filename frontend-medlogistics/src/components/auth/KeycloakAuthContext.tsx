@@ -36,7 +36,7 @@ interface AuthContextType {
   token: string | null;
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
-  getAccessToken: () => string | null;
+  getAccessToken: () => Promise<string | null>;
   hasRole: (role: string) => boolean;
   error: string | null;
 }
@@ -63,12 +63,14 @@ export const KeycloakAuthProvider: React.FC<{ children: ReactNode }> = ({ childr
           setUser(userData);
           setIsAuthenticated(true);
         } else {
-          // Token expired, clear it
+          // Token expired, clear both tokens
           localStorage.removeItem('keycloak_token');
+          localStorage.removeItem('keycloak_refresh_token');
         }
       } catch (err) {
         console.error('Error parsing stored token:', err);
         localStorage.removeItem('keycloak_token');
+        localStorage.removeItem('keycloak_refresh_token');
       }
     }
     setIsLoading(false);
@@ -149,6 +151,7 @@ export const KeycloakAuthProvider: React.FC<{ children: ReactNode }> = ({ childr
 
       const tokenData = await response.json();
       const accessToken = tokenData.access_token;
+      const refreshToken = tokenData.refresh_token;
 
       if (!accessToken) {
         throw new Error('No access token received from Keycloak');
@@ -162,8 +165,11 @@ export const KeycloakAuthProvider: React.FC<{ children: ReactNode }> = ({ childr
 
       console.log('Login successful for user:', userData.email);
 
-      // Store token and update state
+      // Store tokens and update state
       localStorage.setItem('keycloak_token', accessToken);
+      if (refreshToken) {
+        localStorage.setItem('keycloak_refresh_token', refreshToken);
+      }
       setToken(accessToken);
       setUser(userData);
       setIsAuthenticated(true);
@@ -181,18 +187,87 @@ export const KeycloakAuthProvider: React.FC<{ children: ReactNode }> = ({ childr
   // Logout function
   const logout = () => {
     localStorage.removeItem('keycloak_token');
+    localStorage.removeItem('keycloak_refresh_token');
     setToken(null);
     setUser(null);
     setIsAuthenticated(false);
     setError(null);
   };
 
-  // Get access token
-  const getAccessToken = (): string | null => {
+  // Get access token with auto-refresh
+  const getAccessToken = async (): Promise<string | null> => {
     if (token && !isTokenExpired(token)) {
       return token;
     }
+    
+    // Token expired, try to refresh
+    if (token) {
+      try {
+        const refreshed = await refreshAccessToken();
+        return refreshed;
+      } catch (error) {
+        console.error('Token refresh failed:', error);
+        logout(); // Force re-login if refresh fails
+        return null;
+      }
+    }
+    
     return null;
+  };
+
+  // Refresh access token
+  const refreshAccessToken = async (): Promise<string | null> => {
+    try {
+      const storedRefreshToken = localStorage.getItem('keycloak_refresh_token');
+      if (!storedRefreshToken) {
+        throw new Error('No refresh token available');
+      }
+
+      const tokenUrl = `${KEYCLOAK_CONFIG.url}/realms/${KEYCLOAK_CONFIG.realm}/protocol/openid-connect/token`;
+      
+      const response = await fetch(tokenUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          client_id: KEYCLOAK_CONFIG.clientId,
+          grant_type: 'refresh_token',
+          refresh_token: storedRefreshToken,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Token refresh failed');
+      }
+
+      const tokenData = await response.json();
+      const newAccessToken = tokenData.access_token;
+      const newRefreshToken = tokenData.refresh_token;
+
+      if (!newAccessToken) {
+        throw new Error('No access token in refresh response');
+      }
+
+      // Update tokens
+      localStorage.setItem('keycloak_token', newAccessToken);
+      if (newRefreshToken) {
+        localStorage.setItem('keycloak_refresh_token', newRefreshToken);
+      }
+
+      setToken(newAccessToken);
+      
+      // Update user data if needed
+      const userData = parseJWT(newAccessToken);
+      if (userData) {
+        setUser(userData);
+      }
+
+      return newAccessToken;
+    } catch (error) {
+      console.error('Token refresh error:', error);
+      throw error;
+    }
   };
 
   // Check if user has specific role
@@ -236,7 +311,7 @@ export const useAuth0 = () => {
     isLoading: keycloakAuth.isLoading,
     isAuthenticated: keycloakAuth.isAuthenticated,
     user: keycloakAuth.user,
-    getAccessTokenSilently: async () => keycloakAuth.getAccessToken() || '',
+    getAccessTokenSilently: async () => (await keycloakAuth.getAccessToken()) || '',
     loginWithRedirect: () => {
       // This will be handled by a custom login component
       console.log('Login redirect - use custom login form');

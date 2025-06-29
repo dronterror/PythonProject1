@@ -102,8 +102,9 @@ def setup_keycloak():
         "defaultSignatureAlgorithm": "RS256",
         "revokeRefreshToken": False,
         "refreshTokenMaxReuse": 0,
-        "accessTokenLifespan": 300,
-        "accessTokenLifespanForImplicitFlow": 900,
+        "refreshTokenLifespan": 86400,  # 24 hours
+        "accessTokenLifespan": 3600,  # 1 hour instead of 5 minutes
+        "accessTokenLifespanForImplicitFlow": 7200,  # 2 hours instead of 15 minutes
         "ssoSessionIdleTimeout": 1800,
         "ssoSessionMaxLifespan": 36000,
         "offlineSessionIdleTimeout": 2592000,

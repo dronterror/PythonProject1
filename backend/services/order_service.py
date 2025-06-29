@@ -1,6 +1,7 @@
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 import uuid
 import logging
+from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -97,6 +98,28 @@ class OrderService:
             List of active medication orders
         """
         return self.order_repo.list_active(skip, limit)
+    
+    def list_active_orders_with_cursor(
+        self, 
+        cursor: Optional[Union[datetime, uuid.UUID]] = None, 
+        limit: int = 100,
+        cursor_type: str = "timestamp"
+    ) -> Dict[str, Any]:
+        """
+        Get active orders using efficient cursor-based pagination.
+        
+        This method provides scalable pagination that maintains O(log n) performance
+        regardless of dataset size, making it suitable for production workloads.
+        
+        Args:
+            cursor: The cursor value from the previous page (timestamp or UUID)
+            limit: Maximum number of records to return
+            cursor_type: Either "timestamp" (created_at) or "id" for cursor positioning
+            
+        Returns:
+            Dict containing 'orders' list and 'next_cursor' for subsequent pagination
+        """
+        return self.order_repo.list_active_with_cursor(cursor, limit, cursor_type)
     
     def list_orders_by_doctor(self, doctor_id: uuid.UUID) -> List[MedicationOrder]:
         """

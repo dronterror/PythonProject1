@@ -47,7 +47,8 @@ class Settings(BaseSettings):
     def keycloak_issuer(self) -> str:
         """Construct the issuer URL for Keycloak."""
         # Use the external URL for issuer validation since that's what tokens contain
-        return f"http://keycloak.medlog.local/realms/{self.keycloak_realm}"
+        # Match the URL that users access Keycloak through
+        return f"http://localhost:8081/realms/{self.keycloak_realm}"
 
 
 # Create a global settings instance

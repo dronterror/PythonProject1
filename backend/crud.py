@@ -407,15 +407,18 @@ def get_mar_dashboard_data(db: Session) -> Dict[str, Any]:
         Dictionary containing patient-grouped order data with all related information
     """
     # This function is optimized to prevent N+1 queries for the nurse dashboard
-    from sqlalchemy.orm import joinedload
+    from sqlalchemy.orm import joinedload, selectinload
     
     # Fetch all active orders with related data in a single query
+    # CRITICAL: selectinload for one-to-many prevents cartesian product data explosion
     active_orders = db.query(models.MedicationOrder).filter(
         models.MedicationOrder.status == models.OrderStatus.active
     ).options(
+        # joinedload for many-to-one: efficient single query with JOIN
         joinedload(models.MedicationOrder.drug),
         joinedload(models.MedicationOrder.doctor),
-        joinedload(models.MedicationOrder.administrations)
+        # selectinload for one-to-many: prevents data duplication via separate WHERE...IN query
+        selectinload(models.MedicationOrder.administrations)
     ).all()
     
     # Group orders by patient

@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
+from datetime import datetime
 from models import User
 from schemas import MedicationOrderOut, MedicationOrderCreate
 from dependencies import require_role, require_roles, get_current_user
@@ -123,12 +124,83 @@ def get_orders(
     """
     Get all active orders with pagination.
     Uses optimized queries to prevent N+1 problems.
+    
+    WARNING: This endpoint uses OFFSET-based pagination which is inefficient for large datasets.
+    Use /orders/cursor for production workloads with cursor-based pagination.
     """
     try:
         active_orders = order_service.list_active_orders(skip, limit)
         return active_orders
     except Exception as e:
         logger.error(f"Error retrieving orders: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while retrieving orders"
+        )
+
+
+@router.get("/cursor", response_model=Dict[str, Any], dependencies=[Depends(get_current_user)])
+def get_orders_with_cursor(
+    order_service: OrderService = Depends(get_order_service),
+    cursor: Optional[str] = Query(None, description="Cursor from previous page for pagination"),
+    limit: int = Query(50, le=100, description="Maximum number of orders to return"),
+    cursor_type: str = Query("timestamp", regex="^(timestamp|id)$", description="Type of cursor to use")
+):
+    """
+    Get active orders using efficient CURSOR-based pagination.
+    
+    This endpoint provides scalable pagination that maintains O(log n) performance
+    regardless of dataset size, unlike OFFSET-based pagination which degrades linearly.
+    
+    Args:
+        cursor: The cursor value from the previous page (timestamp or UUID string)
+        limit: Maximum number of records to return (max 100)
+        cursor_type: Either "timestamp" for chronological or "id" for stable pagination
+        
+    Returns:
+        {
+            "orders": [...],
+            "next_cursor": "2024-01-15T10:30:00Z" or "uuid-string",
+            "has_next": true,
+            "cursor_type": "timestamp"
+        }
+    """
+    try:
+        # Parse cursor based on type
+        parsed_cursor = None
+        if cursor:
+            if cursor_type == "timestamp":
+                try:
+                    parsed_cursor = datetime.fromisoformat(cursor.replace('Z', '+00:00'))
+                except ValueError:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Invalid timestamp cursor format. Use ISO format: 2024-01-15T10:30:00Z"
+                    )
+            else:  # cursor_type == "id"
+                try:
+                    parsed_cursor = uuid.UUID(cursor)
+                except ValueError:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Invalid UUID cursor format"
+                    )
+        
+        result = order_service.list_active_orders_with_cursor(parsed_cursor, limit, cursor_type)
+        
+        # Format cursor for JSON response
+        if result["next_cursor"]:
+            if cursor_type == "timestamp":
+                result["next_cursor"] = result["next_cursor"].isoformat() + "Z"
+            else:
+                result["next_cursor"] = str(result["next_cursor"])
+        
+        return result
+        
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions
+    except Exception as e:
+        logger.error(f"Error retrieving orders with cursor: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while retrieving orders"
