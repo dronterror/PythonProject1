@@ -48,8 +48,15 @@ class OrderRepository:
             self.db.flush()
             self.db.refresh(db_order)
             
-            # Return with relationships loaded
-            return self.get_by_id(db_order.id)
+            # Load relationships within transaction context to prevent race conditions
+            db_order_with_relations = self.db.query(MedicationOrder).options(
+                joinedload(MedicationOrder.drug),
+                joinedload(MedicationOrder.doctor),
+                selectinload(MedicationOrder.administrations),
+                selectinload(MedicationOrder.administrations).selectinload(MedicationAdministration.nurse)
+            ).filter(MedicationOrder.id == db_order.id).first()
+            
+            return db_order_with_relations
     
     def list_active(self, skip: int = 0, limit: int = 100) -> List[MedicationOrder]:
         """
@@ -154,7 +161,16 @@ class OrderRepository:
                 order.status = status
                 self.db.flush()
                 self.db.refresh(order)
-                return self.get_by_id(order_id)  # Return with relationships loaded
+                
+                # Load relationships within transaction context to prevent race conditions
+                order_with_relations = self.db.query(MedicationOrder).options(
+                    joinedload(MedicationOrder.drug),
+                    joinedload(MedicationOrder.doctor),
+                    selectinload(MedicationOrder.administrations),
+                    selectinload(MedicationOrder.administrations).selectinload(MedicationAdministration.nurse)
+                ).filter(MedicationOrder.id == order_id).first()
+                
+                return order_with_relations
             return None
     
     def delete(self, order_id: uuid.UUID) -> bool:

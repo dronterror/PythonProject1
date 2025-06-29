@@ -49,6 +49,10 @@ class RedisCache:
     """Redis cache client with JSON serialization support."""
     
     def __init__(self):
+        # Always initialize fallback first
+        self._fallback = InMemoryCache()
+        self.redis_client = None
+        
         try:
             import redis
             # Use Docker service name for Redis connection
@@ -65,11 +69,12 @@ class RedisCache:
             # Test connection
             self.redis_client.ping()
             logger.info("Redis connection established successfully")
-        except Exception as e:
-            logger.warning(f"Redis not available ({e}), using in-memory cache fallback")
-            # Use in-memory fallback if Redis is unavailable
+        except ImportError as e:
+            logger.warning(f"Redis module not available ({e}), using in-memory cache fallback")
             self.redis_client = None
-            self._fallback = InMemoryCache()
+        except Exception as e:
+            logger.warning(f"Redis connection failed ({e}), using in-memory cache fallback")
+            self.redis_client = None
     
     def get(self, key: str) -> Optional[Any]:
         """Get value from cache and deserialize from JSON."""

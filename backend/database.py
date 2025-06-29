@@ -40,8 +40,9 @@ engine = create_engine(
     # Database-specific optimizations
     connect_args={
         "application_name": "valmed_backend",
-        # Set statement timeout to prevent runaway queries
-        "options": "-c timezone=utc -c statement_timeout=30000"  # 30 second timeout
+        # statement_timeout is configured at Docker level (5 seconds)
+        # keeping timezone setting for consistency
+        "options": "-c timezone=utc"
     } if "postgresql" in DATABASE_URL else {}
 )
 
